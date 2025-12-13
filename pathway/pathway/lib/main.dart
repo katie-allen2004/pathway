@@ -1,37 +1,22 @@
 import 'package:flutter/material.dart';
+import 'features/home/presentation/pages/home_page.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const PathwayApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class PathwayApp extends StatelessWidget {
+  const PathwayApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Senior Design App',
+      title: 'Pathway',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
       home: const HomePage(),
-    );
-  }
-}
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Senior Design App'),
-      ),
-      body: const Center(
-        child: Text('Hello, senior design!'),
-      ),
     );
   }
 }

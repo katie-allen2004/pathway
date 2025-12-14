@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'features/auth/presentation/login_screen.dart';
 
 void main() {
-  runApp(const PathwayApp());
+  runApp(const PathwayApp()); // Run main
 }
 
 class PathwayApp extends StatelessWidget {

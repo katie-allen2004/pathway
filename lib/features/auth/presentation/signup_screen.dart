@@ -37,8 +37,6 @@ class _SignupScreenState extends State<SignupScreen> {
       
       print('Attempting Sign Up for: $email with name: $name');
       
-      // TODO: Call your AuthService here to initiate the Azure AD B2C flow.
-      // Example (placeholder): AuthService.instance.startB2CSignup();
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Validation successful. Initiating Sign Up flow...')),

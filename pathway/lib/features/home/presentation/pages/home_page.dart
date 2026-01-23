@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -9,7 +10,9 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pathway'), // Title text (upper left corner)
+        title: Text(
+                        'Pathway',
+                      ), // Title text (upper left corner)
         centerTitle: false,
         actions: [
           IconButton(

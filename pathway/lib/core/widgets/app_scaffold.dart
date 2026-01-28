@@ -1,7 +1,10 @@
-
 import 'package:flutter/material.dart';
 import '../../features/home/presentation/pages/home_page.dart';
-
+import '../services/profile_service.dart';
+import '../services/api_client.dart';
+import '/models/user_profile.dart';
+// 1. Ensure this import points to your new file
+import '../../features/auth/presentation/search_screen.dart'; 
 
 class MapScreen extends StatelessWidget {
   const MapScreen({Key? key}) : super(key: key);
@@ -58,8 +61,9 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
   int _selectedIndex = 0; 
 
   final List<Widget> _widgetOptions = <Widget>[
-    const HomePage(),        
-    const MapScreen(),       
+    const HomePage(),
+    const MapScreen(),        
+    const SearchScreen(),      
     const MessagesScreen(),  
     const ProfileScreen(),   
     const SettingsScreen(),  
@@ -80,6 +84,8 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'), 
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Map'),
+          // 2. Updated the Icon to Search
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Messages'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),

@@ -12,6 +12,10 @@
 .swiftpm/
 migrate_working_dir/
 
+pathway/linux/flutter/
+pathway/macos/flutter/
+pathway/windows/flutter/
+
 # IntelliJ related
 *.iml
 *.ipr

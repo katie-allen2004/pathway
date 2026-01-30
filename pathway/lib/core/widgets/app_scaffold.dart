@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/profile/presentation/pages/profile_page.dart';
 import '../services/profile_service.dart';
 import '../services/api_client.dart';
 import '/models/user_profile.dart';
-// 1. Ensure this import points to your new file
 import '../../features/auth/presentation/search_screen.dart'; 
 
 class MapScreen extends StatelessWidget {
@@ -14,6 +14,17 @@ class MapScreen extends StatelessWidget {
     body: const Center(
       child: Text('Map/Discovery Content (Index 1)', style: TextStyle(fontSize: 24, color: Colors.blue)),
     ),
+  );
+}
+
+class BadgesScreen extends StatelessWidget {
+  const BadgesScreen({Key? key}) : super(key: key);
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Badges')),
+    body: const Center(
+      child: Text('Badges Content', style: TextStyle(fontSize: 24, color: Colors.deepPurple)),
+      )
   );
 }
 
@@ -28,27 +39,6 @@ class MessagesScreen extends StatelessWidget {
   );
 }
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Profile')),
-    body: const Center(
-      child: Text('Profile Content (Index 3)', style: TextStyle(fontSize: 24, color: Colors.amber)),
-    ),
-  );
-}
-
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('System Settings')),
-    body: const Center(
-      child: Text('System Settings Content (Index 4)', style: TextStyle(fontSize: 24, color: Colors.grey)),
-    ),
-  );
-}
 
 class PathwayNavShell extends StatefulWidget { 
   const PathwayNavShell({Key? key}) : super(key: key);
@@ -63,10 +53,10 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
   final List<Widget> _widgetOptions = <Widget>[
     const HomePage(),
     const MapScreen(),        
-    const SearchScreen(),      
+    const SearchScreen(),
+    const BadgesScreen(),      
     const MessagesScreen(),  
-    const ProfileScreen(),   
-    const SettingsScreen(),  
+    const ProfilePage(),    
   ];
 
   void _onItemTapped(int index) {
@@ -84,11 +74,10 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'), 
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Map'),
-          // 2. Updated the Icon to Search
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+          BottomNavigationBarItem(icon: Icon(Icons.star_rounded), label: 'Badges'),
           BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Messages'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
         
         currentIndex: _selectedIndex,

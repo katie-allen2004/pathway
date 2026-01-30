@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pathway/core/theme/app_theme.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -8,39 +9,38 @@ class ProfilePage extends StatelessWidget {
     final theme = Theme.of(context);
 
 return Scaffold(
-  appBar: AppBar(
-    toolbarHeight: 220,
+  appBar: PathwayAppBar(
+    height: 220,
     automaticallyImplyLeading: false,
-    backgroundColor: const Color.fromARGB(255, 76, 89, 185),
-
-    title: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 50,
-          backgroundImage: NetworkImage(
-            'https://storage.googleapis.com/gweb-developer-goog-blog-assets/images_archive/original_images/image2_ut0360C.png',
+    centertitle: true,
+    title: SafeArea(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 12),
+          const CircleAvatar(
+            radius: 50,
+            backgroundImage: NetworkImage(''),
           ),
-        ),
-        const SizedBox(height: 18),
-        const Text(
-          'User Name',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            fontSize: 25,
-          ),
-        ),
-        const Text(
-          'user-email@domain.com',
-          style: TextStyle(
-            color:Color.fromARGB(90, 255, 255, 255)
+          const SizedBox(height: 18),
+          const Text('User Name', 
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      fontSize: 25,
+                    ),
+                  ),
+          const Text(
+            'user-email@domain.com',
+            style: TextStyle(
+              color: Color.fromARGB(255, 232, 227, 245),
+            )
           )
+        ],
         )
-      ],
-    ),
-    centerTitle: true,
-    ),
+      ,)
+
+  ),
     body: SafeArea(
           child: CustomScrollView(
             slivers: [
@@ -164,7 +164,7 @@ return Scaffold(
                                                       )
                                                 ),
                               tileColor: Color.fromARGB(255, 76, 89, 185),
-                              shape: RoundedRectangleBorder(borderRadius:BorderRadius.all(Radius.circular(16))),
+                              shape: RoundedRectangleBorder(borderRadius:BorderRadius.all(Radius.circular(10))),
                               onTap: () {
                                 // Sign out page
                               },

@@ -14,6 +14,7 @@ class PathwayApp extends StatelessWidget {
     return MaterialApp(
       title: 'Pathway',
       theme: ThemeData(
+        scaffoldBackgroundColor: Color.fromARGB(255, 233, 234, 247),
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),

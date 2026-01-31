@@ -30,6 +30,7 @@ class PathwayAppBar extends StatelessWidget
         centerTitle: centertitle,
         elevation: 0,
         backgroundColor: Colors.transparent,
+        
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             color: Color.fromARGB(255, 76, 89, 185),

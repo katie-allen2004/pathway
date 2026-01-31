@@ -39,6 +39,30 @@ class MessagesScreen extends StatelessWidget {
   );
 }
 
+class SelectedNavIcon extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+
+  const SelectedNavIcon({
+    super.key,
+    required this.icon,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? Colors.white : Colors.transparent,
+      ),
+      child: Icon(
+        icon,
+        color: selected ? Color.fromARGB(255, 76, 89, 185) : Colors.white),
+    );
+  }
+}
 
 class PathwayNavShell extends StatefulWidget { 
   const PathwayNavShell({Key? key}) : super(key: key);
@@ -70,22 +94,115 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
     return Scaffold(
       body: _widgetOptions.elementAt(_selectedIndex), 
       
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'), 
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.star_rounded), label: 'Badges'),
-          BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Messages'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Color.fromARGB(255, 76, 89, 185),
+          image: DecorationImage(
+            image: AssetImage('assets/images/navbar_texture.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+                Color.fromARGB(30, 0, 0, 0),
+                BlendMode.dstIn,
+            )
+          ),
+        ),
+      child: BottomNavigationBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        // Color.fromARGB(255, 76, 89, 185),
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.deepPurple, 
-        unselectedItemColor: Colors.grey,
+
+        selectedItemColor: Colors.white, 
+        unselectedItemColor: Colors.white,
+
+        selectedLabelStyle: const TextStyle(
+          fontSize: 12
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 12
+        ),
+
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+          // Home icon
+            icon: const SelectedNavIcon(
+              icon: Icons.home_rounded,
+              selected: false,
+              ), 
+            activeIcon: const SelectedNavIcon(
+              icon: Icons.home_rounded,
+              selected: true,
+              ),
+            label: 'Home'
+          ),
+          // Map icon
+          BottomNavigationBarItem(
+            icon: const SelectedNavIcon(
+              icon: Icons.map_rounded,
+              selected: false,
+            ),
+            activeIcon: const SelectedNavIcon(
+              icon: Icons.map_rounded,
+              selected: true,
+            ),
+            label: 'Map'
+          ),
+          // Search icon
+          BottomNavigationBarItem(
+            icon: const SelectedNavIcon(
+              icon: Icons.search_rounded,
+              selected: false,
+            ),
+            activeIcon: const SelectedNavIcon(
+              icon: Icons.search_rounded,
+              selected: true,
+            ),
+            label: 'Search'
+          ),
+          // Badges icon
+          BottomNavigationBarItem(
+            icon: const SelectedNavIcon(
+              icon: Icons.star_rounded,
+              selected: false,
+            ),
+            activeIcon: const SelectedNavIcon(
+              icon: Icons.star_rounded,
+              selected: true,
+            ),
+            label: 'Badges'
+          ),
+          // Message icon
+          BottomNavigationBarItem(
+            icon: const SelectedNavIcon(
+              icon: Icons.message,
+              selected: false,
+            ),
+            activeIcon: const SelectedNavIcon(
+              icon: Icons.message,
+              selected: true,
+            ),
+            label: 'Messages'
+          ),
+
+          BottomNavigationBarItem(
+            icon: const SelectedNavIcon(
+              icon: Icons.person_rounded,
+              selected: false,
+            ),
+            activeIcon: const SelectedNavIcon(
+              icon: Icons.person_rounded,
+              selected: true,
+            ),
+            label: 'Profile'
+          ),
+        ],
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
       ),
+      )
     );
   }
 }

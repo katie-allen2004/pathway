@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:pathway/core/utils/validators.dart'; 
-
+import 'package:pathway/core/utils/validators.dart';
+import 'login_screen.dart';
+import 'package:pathway/features/auth/data/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -18,6 +19,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isSubmitting = false;
+  final _authService = AuthService();
 
   @override
   void dispose() {
@@ -28,19 +31,31 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _submitSignupForm() {
-    if (_formKey.currentState!.validate()) {
-      
-      final name = _nameController.text;
-      final email = _emailController.text;
-      final password = _passwordController.text;
-      
-      print('Attempting Sign Up for: $email with name: $name');
-      
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Validation successful. Initiating Sign Up flow...')),
-      );
+  Future<void> _submitSignupForm() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+
+    final name = _nameController.text.trim().isEmpty
+        ? null
+        : _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    final result = await _authService.register(
+      name: name,
+      email: email,
+      password: password,
+    );
+
+    setState(() => _isSubmitting = false);
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+
+    if (result.success) {
+      Navigator.pop(context); // back to LoginScreen
     }
   }
 
@@ -49,9 +64,7 @@ class _SignupScreenState extends State<SignupScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-      ),
+      appBar: AppBar(title: const Text('Create Account')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -59,7 +72,9 @@ class _SignupScreenState extends State<SignupScreen> {
           children: [
             Text(
               'Join the Pathfinders',
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 32),
 
@@ -74,7 +89,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       prefixIcon: Icon(Icons.person_outline),
                     ),
                     keyboardType: TextInputType.name,
-                    validator: (value) => AppValidators.isNotEmpty(value, 'Full Name'),
+                    validator: (value) =>
+                        AppValidators.isNotEmpty(value, 'Full Name'),
                   ),
                   const SizedBox(height: 16),
 
@@ -96,7 +112,9 @@ class _SignupScreenState extends State<SignupScreen> {
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -117,25 +135,35 @@ class _SignupScreenState extends State<SignupScreen> {
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
                     obscureText: true,
-                    validator: (confirmValue) => AppValidators.isConfirmedPassword(
-                      confirmValue, 
-                      _passwordController.text 
-                    ),
+                    validator: (confirmValue) =>
+                        AppValidators.isConfirmedPassword(
+                          confirmValue,
+                          _passwordController.text,
+                        ),
                   ),
                   const SizedBox(height: 32),
 
                   ElevatedButton(
-                    onPressed: _submitSignupForm,
+                    onPressed: _isSubmitting ? null : _submitSignupForm,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       minimumSize: const Size(double.infinity, 50),
                     ),
-                    child: const Text('Create Account', style: TextStyle(fontSize: 18)),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Create Account',
+                            style: TextStyle(fontSize: 18),
+                          ),
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
 
             Row(
@@ -145,7 +173,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 TextButton(
                   onPressed: () {
                     // Navigate back to the LoginScreen
-                    Navigator.of(context).pop(); 
+                    Navigator.of(context).pop();
                   },
                   child: const Text('Log In'),
                 ),

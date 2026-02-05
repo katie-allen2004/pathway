@@ -24,3 +24,9 @@ CREATE TABLE IF NOT EXISTS pathway.user_badges (
   earned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, badge_id)
 );
+
+-- seed badges
+INSERT INTO pathway.badges (badge_name, description) VALUES
+  ('First Review', 'Wrote your first review'),
+  ('Explorer', 'Reviewed multiple venues')
+ON CONFLICT (badge_name) DO NOTHING;

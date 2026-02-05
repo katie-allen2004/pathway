@@ -18,10 +18,17 @@ CREATE TABLE IF NOT EXISTS pathway.venue_reviews (
   UNIQUE (venue_id, user_id)
 );
 
--- photos for a review (store the URL for now)
+-- photos for a review (url)
 CREATE TABLE IF NOT EXISTS pathway.review_photos (
   photo_id BIGSERIAL PRIMARY KEY,
   review_id BIGINT NOT NULL REFERENCES pathway.venue_reviews(review_id) ON DELETE CASCADE,
   url TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- tags on reviews
+CREATE TABLE IF NOT EXISTS pathway.review_tags (
+  review_id BIGINT NOT NULL REFERENCES pathway.venue_reviews(review_id) ON DELETE CASCADE,
+  tag_id BIGINT NOT NULL REFERENCES pathway.accessibility_tags(tag_id) ON DELETE CASCADE,
+  PRIMARY KEY (review_id, tag_id)
 );

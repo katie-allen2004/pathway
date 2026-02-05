@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pathway/core/widgets/app_scaffold.dart';
 import 'signup_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 // Import validators
 import 'package:pathway/core/utils/validators.dart';
@@ -27,20 +29,29 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submitLoginForm() {
-    if (_formKey.currentState!.validate()) {
-      // Form is valid. Later, this will trigger the Azure AD B2C login flow.
-      print('Attempting Login for: ${_emailController.text}');
+  Future<void> _submitLoginForm() async {
+  if (_formKey.currentState!.validate()) {
+    print('Attempting Login for: ${_emailController.text}');
 
-      // For now, on successful validation, we navigate to the main app shell.
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          // Assuming PathwayNavShell is accessible globally or needs to be imported correctly.
           builder: (_) => const PathwayNavShell(),
         ),
       );
+    } on AuthException catch (e) {
+      print('Login failed: ${e.message}');
+    } catch (e) {
+      print('Login failed: $e');
     }
   }
+}
+
 
   // Function to navigate to the Signup screen
   void _navigateToSignup() {

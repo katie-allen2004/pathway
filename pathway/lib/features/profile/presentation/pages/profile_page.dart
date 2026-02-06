@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pathway/core/theme/app_theme.dart';
+import 'edit_profile_information_page.dart';
+import 'package:pathway/core/routing/app_router.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -52,24 +54,36 @@ return Scaffold(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.person),
-                              title: const Text('Edit profile information'),
-                              onTap: () {
-                                // Go to edit profile information page
-                              },
+                              title: const Text('Edit profile information',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
+                              onTap: () => routePage(context, const EditProfilePage())
                             ),
                             const Divider(height: 1),
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.notifications_rounded),
-                              title: const Text('Notifications'),
+                              title: const Text('Notifications',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )),
                               onTap: () {
                                 // Go to notification settings page
                               },
                             ),
                             const Divider(height: 1),
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.settings_accessibility_rounded),
-                              title: const Text('Accessibility settings'),
+                              title: const Text('Accessibility settings',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
                               onTap: () {
                                 // Go to accessibility settings page
                               },
@@ -88,16 +102,26 @@ return Scaffold(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.security_rounded),
-                              title: const Text('Security'),
+                              title: const Text('Security',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
                               onTap: () {
                                 // Go to edit profile information page
                               },
                             ),
                             const Divider(height: 1),
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.notifications_off_rounded),
-                              title: const Text('Blocked and muted accounts'),
+                              title: const Text('Blocked and muted accounts',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
                               onTap: () {
                                 // Go to notification settings page
                               },
@@ -116,24 +140,39 @@ return Scaffold(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.help_center_rounded),
-                              title: const Text('Help'),
+                              title: const Text('Help',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
                               onTap: () {
                                 // Sign out page
                               },
                             ),
                             const Divider(height: 1),
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.contact_page_rounded),
-                              title: const Text('Contact us'),
+                              title: const Text('Contact us',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
                               onTap: () {
                                 // Go to contact us page
                               },
                             ),
                             const Divider(height: 1),
                             ListTile(
+                              dense: true,
                               leading: const Icon(Icons.lock_outline_rounded),
-                              title: const Text('Privacy Policy'),
+                              title: const Text('Privacy Policy',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                )
+                                              ),
                               onTap: () {
                                 // Go to privacy policy page
                               },
@@ -153,13 +192,15 @@ return Scaffold(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             ListTile(
+                              dense: true,
                               leading: const Icon(
                                                 Icons.logout_rounded,
                                                 color: Colors.white),
                               title: const Text(
-                                                'Sign Out',
+                                                'Sign out',
                                                 style: TextStyle(
                                                         fontWeight: FontWeight.w700,
+                                                        fontSize: 15,
                                                         color: Colors.white,
                                                       )
                                                 ),
@@ -177,6 +218,6 @@ return Scaffold(
             ]
           )
     )
-          );
+  );
   }
 }

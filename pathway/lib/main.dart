@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
-  runApp(const PathwayApp()); // Run main
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: const String.fromEnvironment('SUPABASE_URL'),
+    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
+  );
+  print('SUPABASE_URL=' + const String.fromEnvironment('SUPABASE_URL'));
+
+
+  runApp(const PathwayApp());
 }
 
 class PathwayApp extends StatelessWidget {

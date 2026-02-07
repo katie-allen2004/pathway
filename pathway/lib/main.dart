@@ -4,18 +4,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 
-Future<void> main() async {
+
+
+  Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL'),
-    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
-  );
-  print('SUPABASE_URL=' + const String.fromEnvironment('SUPABASE_URL'));
+  final supabaseUrlRaw = const String.fromEnvironment('SUPABASE_URL');
+  final supabaseUrl = supabaseUrlRaw.replaceFirst(RegExp(r'\/$'), ''); // remove trailing slash
+  final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
 
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+  );
+
+  print('SUPABASE_URL=' + supabaseUrl);
 
   runApp(const PathwayApp());
 }
+
 
 class PathwayApp extends StatelessWidget {
   const PathwayApp({super.key});

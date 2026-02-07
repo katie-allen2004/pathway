@@ -32,13 +32,13 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _submitSignupForm() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSubmitting = true);
+  setState(() => _isSubmitting = true);
 
-    final name = _nameController.text.trim().isEmpty
-        ? null
-        : _nameController.text.trim();
+  try {
+    final name =
+        _nameController.text.trim().isEmpty ? null : _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -48,16 +48,36 @@ class _SignupScreenState extends State<SignupScreen> {
       password: password,
     );
 
+    if (!mounted) return;
+
     setState(() => _isSubmitting = false);
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(result.message)));
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.success ? Colors.green : Colors.red,
+      ),
+    );
 
     if (result.success) {
       Navigator.pop(context); // back to LoginScreen
     }
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() => _isSubmitting = false);
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Signup failed: $e'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

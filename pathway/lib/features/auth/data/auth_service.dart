@@ -16,17 +16,18 @@ class AuthService {
       print('REGISTER CALLED email=$email');
 
       final res = await Supabase.instance.client.auth.signUp(
-        email: email,
+        email: email.trim(),
         password: password,
         data: name == null ? null : {'name': name},
       );
 
-      print('SIGNUP user id: ${res.user?.id}');
+      print('SIGNUP user=${res.user?.id} session=${res.session != null}');
 
+      // Email confirmation flow: this can still be a successful signup.
       if (res.user == null) {
         return const RegisterResult(
-          success: false,
-          message: 'Signup did not return a user. Check email confirmation settings.',
+          success: true,
+          message: 'Check your email to confirm your account.',
         );
       }
 
@@ -36,16 +37,13 @@ class AuthService {
       return RegisterResult(success: false, message: e.message);
     } catch (e) {
       print('SIGNUP ERROR: $e');
-      return const RegisterResult(success: false, message: 'Signup failed.');
+      return RegisterResult(success: false, message: 'Signup failed: $e');
     }
   }
 
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> login({required String email, required String password}) async {
     await Supabase.instance.client.auth.signInWithPassword(
-      email: email,
+      email: email.trim(),
       password: password,
     );
   }

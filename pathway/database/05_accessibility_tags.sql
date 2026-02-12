@@ -18,3 +18,10 @@ INSERT INTO pathway.accessibility_tags (tag_name) VALUES
   ('Accessible Restroom'),
   ('Accessible Parking')
 ON CONFLICT (tag_name) DO NOTHING;
+
+-- create table for user accessibility tags
+create table if not exists pathway.user_accessibility_tags (
+  user_id bigint not null references pathway.users(user_id) on delete cascade,
+  tag_id  bigint not null references pathway.accessibility_tags(tag_id) on delete cascade,
+  primary key (user_id, tag_id)
+);

@@ -3,15 +3,15 @@ import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-
-
-
   Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final supabaseUrlRaw = const String.fromEnvironment('SUPABASE_URL');
+  /* final supabaseUrlRaw = const String.fromEnvironment('SUPABASE_URL');
   final supabaseUrl = supabaseUrlRaw.replaceFirst(RegExp(r'\/$'), ''); // remove trailing slash
-  final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
+  final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'); */
+
+  final supabaseUrl = 'https://bpdsfialugbzmorsjjbj.supabase.co';
+  final supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZHNmaWFsdWdiem1vcnNqamJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDAxNzksImV4cCI6MjA4NTMxNjE3OX0.2HQND6IaMGLlAn-cee1gVoyYNiQQibN6nxnjvtrQHfE';
 
   await Supabase.initialize(
     url: supabaseUrl,

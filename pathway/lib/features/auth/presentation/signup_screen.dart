@@ -1,3 +1,4 @@
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:pathway/core/utils/validators.dart';
 import 'login_screen.dart';
@@ -135,14 +136,14 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 6),
 
                 // Header text (simple + matches Login vibe)
-                Align(
-                  alignment: Alignment.centerLeft,
+                Center(
                   child: Text(
                     'Join the Pathfinders',
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black87,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.lato(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4754B8),
                     ),
                   ),
                 ),
@@ -174,6 +175,16 @@ class _SignupScreenState extends State<SignupScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            Text(
+                              'create account',
+                              style: GoogleFonts.lato(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4754B8),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
                             // Full Name
                             TextFormField(
                               controller: _nameController,

@@ -8,15 +8,23 @@ import '../../features/messaging/presentation/pages/conversations_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL'),
-    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
-  );
-  print('SUPABASE_URL=' + const String.fromEnvironment('SUPABASE_URL'));
+  /* final supabaseUrlRaw = const String.fromEnvironment('SUPABASE_URL');
+  final supabaseUrl = supabaseUrlRaw.replaceFirst(RegExp(r'\/$'), ''); // remove trailing slash
+  final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'); */
 
+  final supabaseUrl = 'https://bpdsfialugbzmorsjjbj.supabase.co';
+  final supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZHNmaWFsdWdiem1vcnNqamJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDAxNzksImV4cCI6MjA4NTMxNjE3OX0.2HQND6IaMGLlAn-cee1gVoyYNiQQibN6nxnjvtrQHfE';
+
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+  );
+
+  print('SUPABASE_URL=' + supabaseUrl);
 
   runApp(const PathwayApp());
 }
+
 
 class PathwayApp extends StatelessWidget {
   const PathwayApp({super.key});
@@ -27,6 +35,17 @@ class PathwayApp extends StatelessWidget {
       title: 'Pathway',
       theme: ThemeData(
         scaffoldBackgroundColor: Color.fromARGB(255, 233, 234, 247),
+        appBarTheme: const AppBarTheme(
+          iconTheme: IconThemeData(
+            color: Colors.white,
+            size: 22,
+          ),
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 25,
+          ),
+        ),
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),

@@ -16,7 +16,7 @@ class AuthService {
       print('REGISTER CALLED email=$email');
 
       final res = await Supabase.instance.client.auth.signUp(
-        email: email,
+        email: email.trim(),
         password: password,
         data: name == null ? null : {'display_name': name},
       );
@@ -24,6 +24,7 @@ class AuthService {
       final userId = res.user?.id;
       print('SIGNUP user id: $userId');
 
+      // 1. Check if we have a user ID at all
       if (userId == null) {
         return const RegisterResult(
           success: false,
@@ -31,6 +32,15 @@ class AuthService {
         );
       }
 
+      // 2. Handle the email confirmation flow (main branch logic)
+      if (res.session == null) {
+        return const RegisterResult(
+          success: true,
+          message: 'Check your email to confirm your account.',
+        );
+      }
+
+      // 3. Sync to your tables (your UUID fix)
       await Supabase.instance.client
           .schema('pathway')
           .from('profiles')
@@ -43,29 +53,25 @@ class AuthService {
           .schema('pathway')
           .from('users')
           .insert({
-
             'external_id': userId,  
             'email': email,          
           });
 
-      print('Data successfully synced to profiles and users tables for $userId');
-
+      print('Data successfully synced for $userId');
       return const RegisterResult(success: true, message: 'Account created!');
+
     } on AuthException catch (e) {
       print('SIGNUP AuthException: ${e.message}');
       return RegisterResult(success: false, message: e.message);
     } catch (e) {
       print('SIGNUP ERROR: $e');
-      return const RegisterResult(success: false, message: 'Signup failed.');
+      return RegisterResult(success: false, message: 'Signup failed: $e');
     }
   }
 
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> login({required String email, required String password}) async {
     await Supabase.instance.client.auth.signInWithPassword(
-      email: email,
+      email: email.trim(),
       password: password,
     );
   }

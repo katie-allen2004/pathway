@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'features/auth/presentation/map_screen.dart';
+import '../../features/messaging/presentation/pages/conversations_page.dart';
 
-  Future<void> main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   /* final supabaseUrlRaw = const String.fromEnvironment('SUPABASE_URL');
@@ -52,3 +54,4 @@ class PathwayApp extends StatelessWidget {
     );
   }
 }
+

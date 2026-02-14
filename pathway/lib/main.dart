@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../features/home/presentation/pages/home_page.dart';
 
 
 
@@ -48,7 +48,7 @@ class PathwayApp extends StatelessWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),
       ),
-      home: const LoginScreen(),
+      home: const HomePage(),
     );
   }
 }

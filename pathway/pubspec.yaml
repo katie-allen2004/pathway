@@ -59,6 +59,7 @@ flutter:
   # the material Icons class.
   assets:
     - assets/images/
+    - assets/tweet_sentiment.csv
 
   fonts:
     - family: Roboto

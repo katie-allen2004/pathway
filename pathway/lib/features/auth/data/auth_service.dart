@@ -18,17 +18,37 @@ class AuthService {
       final res = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
-        data: name == null ? null : {'name': name},
+        data: name == null ? null : {'display_name': name},
       );
 
-      print('SIGNUP user id: ${res.user?.id}');
+      final userId = res.user?.id;
+      print('SIGNUP user id: $userId');
 
-      if (res.user == null) {
+      if (userId == null) {
         return const RegisterResult(
           success: false,
-          message: 'Signup did not return a user. Check email confirmation settings.',
+          message: 'Signup did not return a user.',
         );
       }
+
+      await Supabase.instance.client
+          .schema('pathway')
+          .from('profiles')
+          .insert({
+            'user_id': userId,
+            'display_name': name,
+          });
+
+      await Supabase.instance.client
+          .schema('pathway')
+          .from('users')
+          .insert({
+
+            'external_id': userId,  
+            'email': email,          
+          });
+
+      print('Data successfully synced to profiles and users tables for $userId');
 
       return const RegisterResult(success: true, message: 'Account created!');
     } on AuthException catch (e) {

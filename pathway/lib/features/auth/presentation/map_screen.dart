@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '/features/venues/data/venue_model.dart';
+import '/features/venues/presentation/widgets/venue_card.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -9,12 +11,8 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final TextEditingController _venueController = TextEditingController();
   final _supabase = Supabase.instance.client;
-
   List<Map<String, dynamic>> _allVenues = [];
-  List<Map<String, dynamic>> _filteredVenues = [];
-  Map<String, dynamic>? _selectedVenue;
   bool _isLoading = true;
 
   @override
@@ -23,11 +21,12 @@ class _MapScreenState extends State<MapScreen> {
     _loadVenues();
   }
 
-Future<void> _loadVenues() async {
+  ///gets  data from Supabase
+  Future<void> _loadVenues() async {
     try {
       final data = await _supabase
-          .schema('pathway') // <--- Add this line
-          .from('venues')     // <--- Just 'venues', no 'pathway.' prefix
+          .schema('pathway')
+          .from('venues')
           .select();
 
       setState(() {
@@ -40,55 +39,166 @@ Future<void> _loadVenues() async {
     }
   }
 
-  void _searchVenues(String query) {
-    if (query.isEmpty) {
-      setState(() => _filteredVenues = []);
-      return;
+  /// the is_saved status in Supabase
+  Future<void> _handleFavoriteToggle(VenueModel venue) async {
+    //Calculate the new status (flip current)
+    final bool currentStatus = venue.isSaved ?? false;
+    final bool newStatus = !currentStatus;
+
+    debugPrint("Changing ${venue.name} heart from $currentStatus to $newStatus");
+
+    try {
+      //  update Supabase
+      await _supabase
+          .schema('pathway')
+          .from('venues')
+          .update({'is_saved': newStatus})
+          .eq('venue_id', venue.id);
+
+      //  re-fetch data so the UI reflects the change
+      await _loadVenues();
+      debugPrint("Database sync complete.");
+    } catch (e) {
+      debugPrint('Favorite Toggle Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error updating favorite: $e")),
+        );
+      }
     }
-    setState(() {
-      _filteredVenues = _allVenues.where((v) {
-        final name = v['name']?.toLowerCase() ?? ''; //
-        return name.contains(query.toLowerCase());
-      }).toList();
-    });
   }
 
-  void _showVenueDetails(Map<String, dynamic> venue) {
-    setState(() {
-      _selectedVenue = venue;
-      _filteredVenues = [];
-      _venueController.text = venue['name'] ?? '';
-    });
+  ///a new venue
+  Future<void> _showAddVenueDialog() async {
+    final nameController = TextEditingController();
+    final cityController = TextEditingController();
 
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add New Venue"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Venue Name")),
+            TextField(controller: cityController, decoration: const InputDecoration(labelText: "City")),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.isNotEmpty) {
+                await _supabase.schema('pathway').from('venues').insert({
+                  'name': nameController.text,
+                  'city': cityController.text,
+                  'is_saved': false, 
+                });
+                if (mounted) Navigator.pop(context);
+                _loadVenues();
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// This will Edit name/city
+  Future<void> _showEditVenueForm(BuildContext context, Map<String, dynamic> venue) async {
+    final nameController = TextEditingController(text: venue['name']);
+    final cityController = TextEditingController(text: venue['city']);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Edit Venue"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Name")),
+            TextField(controller: cityController, decoration: const InputDecoration(labelText: "City")),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              await _supabase.schema('pathway').from('venues').update({
+                'name': nameController.text,
+                'city': cityController.text,
+              }).eq('venue_id', venue['venue_id']);
+              
+              if (mounted) Navigator.pop(context);
+              _loadVenues();
+            },
+            child: const Text("Update"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// this will will delete
+  Future<void> _showDeleteConfirmation(BuildContext context, dynamic venueId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Venue?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text("Delete", style: TextStyle(color: Colors.red))
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _supabase.schema('pathway').from('venues').delete().eq('venue_id', venueId);
+      _loadVenues();
+    }
+  }
+
+  /// This is the discovery try: a list of venues: since we have no integrated map for now 
+  void _showDiscoveryTray() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: const BoxDecoration(
+          color: Color.fromARGB(255, 245, 245, 250),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Using 'name' from venues table
-            Text(venue['name'] ?? 'Unknown Venue', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            
-            // Concatenating address and city
-            Text("${venue['address_line1'] ?? ''}, ${venue['city'] ?? ''}", style: const TextStyle(color: Colors.grey)),
-            
-            const Divider(height: 30),
-            
-            // Using 'description' from venues table
-            if (venue['description'] != null) ...[
-              Text(venue['description']),
-              const SizedBox(height: 20),
-            ],
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
+            ),
+            const Text("Discovery", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                itemCount: _allVenues.length,
+                itemBuilder: (context, i) {
+                  final venueModel = VenueModel.fromJson(_allVenues[i]);
+                  
+                  // This print will tell you exactly what's coming from the DB
+                  debugPrint("Rendering ${venueModel.name}: isSaved = ${venueModel.isSaved}");
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
-                onPressed: () => Navigator.pop(context),
-                child: const Text("View Pathway to Venue"),
+                  return VenueCard(
+                    venue: venueModel, 
+                    onFavoriteToggle: () => _handleFavoriteToggle(venueModel),
+                    onEdit: () => _showEditVenueForm(context, _allVenues[i]), 
+                    onDelete: () => _showDeleteConfirmation(context, _allVenues[i]['venue_id']),
+                  );
+                },
               ),
             ),
           ],
@@ -100,62 +210,49 @@ Future<void> _loadVenues() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : Stack(
-            children: [
-              // Map Placeholder
-              Container(color: Colors.grey[300], child: const Center(child: Text("MAP VIEW"))),
-
-              // Search and Results UI
-              SafeArea(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: TextField(
-                        controller: _venueController,
-                        onChanged: _searchVenues,
-                        decoration: InputDecoration(
-                          hintText: "Search Venues...",
-                          filled: true,
-                          fillColor: Colors.white,
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.deepPurple,
+        onPressed: _showAddVenueDialog,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                Container(color: Colors.grey[200], child: const Center(child: Text("Map View"))),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                            ),
+                            child: const TextField(
+                              decoration: InputDecoration(hintText: "Search...", border: InputBorder.none),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: _showDiscoveryTray,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: const BoxDecoration(color: Colors.deepPurple, shape: BoxShape.circle),
+                            child: const Icon(Icons.explore, color: Colors.white),
+                          ),
+                        ),
+                      ],
                     ),
-
-                    // Search Results List
-                    if (_filteredVenues.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-                          ),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: _filteredVenues.length,
-                            itemBuilder: (context, i) {
-                              final v = _filteredVenues[i];
-                              return ListTile(
-                                leading: const Icon(Icons.place, color: Colors.deepPurple),
-                                title: Text(v['name'] ?? ''), //
-                                subtitle: Text(v['city'] ?? ''), //
-                                onTap: () => _showVenueDetails(v),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
     );
   }
 }

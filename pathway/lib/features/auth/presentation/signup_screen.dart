@@ -48,7 +48,7 @@ class _SignupScreenState extends State<SignupScreen> {
         name: name,
         email: email,
         password: password,
-      );
+      ); //Connected UI to custom AuthService.register():
 
       if (!mounted) return;
 

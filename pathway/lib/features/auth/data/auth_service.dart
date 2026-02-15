@@ -40,7 +40,7 @@ class AuthService {
         );
       }
 
-      // 3. Sync to your tables (your UUID fix)
+      // 3. Sync to your tables (my UUID fix)
       await Supabase.instance.client
           .schema('pathway')
           .from('profiles')

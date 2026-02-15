@@ -12,16 +12,30 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final _supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> _allVenues = [];
+  
+  // Data State
+  List<Map<String, dynamic>> _allVenues = [];     
+  List<Map<String, dynamic>> _filteredVenues = []; 
+  
+  // Search Logic
+  final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadVenues();
+    // This listener ensures that every keystroke updates the master list
+    _searchController.addListener(_runFilter);
   }
 
-  ///gets  data from Supabase
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Grabs raw data from Supabase
   Future<void> _loadVenues() async {
     try {
       final data = await _supabase
@@ -31,6 +45,7 @@ class _MapScreenState extends State<MapScreen> {
 
       setState(() {
         _allVenues = List<Map<String, dynamic>>.from(data);
+        _runFilter(); // Apply search filter immediately to new data
         _isLoading = false;
       });
     } catch (e) {
@@ -39,36 +54,40 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// the is_saved status in Supabase
+  ///  Logic to narrow down venues based on name or city
+  void _runFilter() {
+    final query = _searchController.text.toLowerCase().trim();
+    
+    setState(() {
+      if (query.isEmpty) {
+        _filteredVenues = _allVenues;
+      } else {
+        _filteredVenues = _allVenues.where((venue) {
+          final String name = (venue['name'] ?? "").toString().toLowerCase();
+          final String city = (venue['city'] ?? "").toString().toLowerCase();
+          return name.contains(query) || city.contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  /// Toggle Favorite Status
   Future<void> _handleFavoriteToggle(VenueModel venue) async {
-    //Calculate the new status (flip current)
-    final bool currentStatus = venue.isSaved ?? false;
-    final bool newStatus = !currentStatus;
-
-    debugPrint("Changing ${venue.name} heart from $currentStatus to $newStatus");
-
+    final bool newStatus = !(venue.isSaved ?? false);
     try {
-      //  update Supabase
       await _supabase
           .schema('pathway')
           .from('venues')
           .update({'is_saved': newStatus})
           .eq('venue_id', venue.id);
 
-      //  re-fetch data so the UI reflects the change
-      await _loadVenues();
-      debugPrint("Database sync complete.");
+      await _loadVenues(); // Refresh data
     } catch (e) {
       debugPrint('Favorite Toggle Error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error updating favorite: $e")),
-        );
-      }
     }
   }
 
-  ///a new venue
+  /// Create New Venue
   Future<void> _showAddVenueDialog() async {
     final nameController = TextEditingController();
     final cityController = TextEditingController();
@@ -105,7 +124,7 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// This will Edit name/city
+  /// Update Existing Venue
   Future<void> _showEditVenueForm(BuildContext context, Map<String, dynamic> venue) async {
     final nameController = TextEditingController(text: venue['name']);
     final cityController = TextEditingController(text: venue['city']);
@@ -140,7 +159,7 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// this will will delete
+  ///  Delete Venue
   Future<void> _showDeleteConfirmation(BuildContext context, dynamic venueId) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -162,48 +181,82 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// This is the discovery try: a list of venues: since we have no integrated map for now 
+  /// Displays the filtered list
   void _showDiscoveryTray() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-          color: Color.fromARGB(255, 245, 245, 250),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
-            ),
-            const Text("Discovery", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                itemCount: _allVenues.length,
-                itemBuilder: (context, i) {
-                  final venueModel = VenueModel.fromJson(_allVenues[i]);
-                  
-                  // This print will tell you exactly what's coming from the DB
-                  debugPrint("Rendering ${venueModel.name}: isSaved = ${venueModel.isSaved}");
+      builder: (context) {
+        // StatefulBuilder allows the tray to update while it is open
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            
+            // This function forces the modal to repaint when the search controller changes
+            void syncListener() {
+              if (mounted) setModalState(() {});
+            }
+            
+            _searchController.addListener(syncListener);
 
-                  return VenueCard(
-                    venue: venueModel, 
-                    onFavoriteToggle: () => _handleFavoriteToggle(venueModel),
-                    onEdit: () => _showEditVenueForm(context, _allVenues[i]), 
-                    onDelete: () => _showDeleteConfirmation(context, _allVenues[i]['venue_id']),
-                  );
-                },
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: const BoxDecoration(
+                color: Color.fromARGB(255, 245, 245, 250),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               ),
-            ),
-          ],
-        ),
-      ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
+                  ),
+                  const Text("Discovery", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  
+                  // Visual Feedback of Search Results
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      _searchController.text.isEmpty 
+                        ? "Showing all venues" 
+                        : "Found ${_filteredVenues.length} results for '${_searchController.text}'",
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: _filteredVenues.isEmpty 
+                    ? const Center(child: Text("No matches found."))
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        itemCount: _filteredVenues.length,
+                        itemBuilder: (context, i) {
+                          final venueModel = VenueModel.fromJson(_filteredVenues[i]);
+                          return VenueCard(
+                            venue: venueModel, 
+                            onFavoriteToggle: () async {
+                              await _handleFavoriteToggle(venueModel);
+                              setModalState(() {}); 
+                            },
+                            onEdit: () async {
+                              await _showEditVenueForm(context, _filteredVenues[i]);
+                              setModalState(() {}); 
+                            }, 
+                            onDelete: () async {
+                              await _showDeleteConfirmation(context, _filteredVenues[i]['venue_id']);
+                              setModalState(() {});
+                            },
+                          );
+                        },
+                      ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -233,8 +286,13 @@ class _MapScreenState extends State<MapScreen> {
                               borderRadius: BorderRadius.circular(30),
                               boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
                             ),
-                            child: const TextField(
-                              decoration: InputDecoration(hintText: "Search...", border: InputBorder.none),
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: const InputDecoration(
+                                hintText: "Search venue or city...", 
+                                border: InputBorder.none,
+                                icon: Icon(Icons.search, color: Colors.deepPurple),
+                              ),
                             ),
                           ),
                         ),

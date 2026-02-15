@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '/features/venues/data/venue_repository.dart';
-import '/features/venues/data/venue_model.dart'; // IMPORTANT: Need this import
+import '/features/venues/data/venue_model.dart';
 import '../widgets/venue_card.dart';
 
 class VenueListPage extends StatefulWidget {

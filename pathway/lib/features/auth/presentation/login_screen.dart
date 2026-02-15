@@ -76,8 +76,6 @@ class GradientStrokeText extends StatelessWidget {
     );
   }
 }
-
-// Change to StatefulWidget to manage form state and text input
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -135,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _navigateToSignup() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        // This links to the SignupScreen you just built!
+        // This links to the SignupScreen 
         builder: (context) => const SignupScreen(),
       ),
     );
@@ -143,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const bgColor = Color(0xFFE9ECF7); // close to your Figma tint (can tweak)
+    const bgColor = Color(0xFFE9ECF7); 
     const primary = Color(0xFF4754B8);
     const secondary = Color(0xFFB7BEF4);
 

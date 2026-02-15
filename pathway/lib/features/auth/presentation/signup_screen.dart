@@ -124,7 +124,7 @@ class _SignupScreenState extends State<SignupScreen> {
               children: [
                 const SizedBox(height: 10),
 
-                // Back arrow (like your earlier UI screenshot)
+                // Back arrow
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
@@ -135,7 +135,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 const SizedBox(height: 6),
 
-                // Header text (simple + matches Login vibe)
+                // Header text (simple + matches Login)
                 Center(
                   child: Text(
                     'Join the Pathfinders',
@@ -251,7 +251,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                             const SizedBox(height: 18),
 
-                            // Create Account button (same loading pattern you already have)
+                            // Create Account button
                             SizedBox(
                               width: double.infinity,
                               height: 44,

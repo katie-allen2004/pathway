@@ -96,6 +96,7 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
       body: _widgetOptions.elementAt(_selectedIndex), 
       
       bottomNavigationBar: Container(
+        // Add texture and color to the bottom navigation bar
         decoration: const BoxDecoration(
           color: Color.fromARGB(255, 76, 89, 185),
           image: DecorationImage(

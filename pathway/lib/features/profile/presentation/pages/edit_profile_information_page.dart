@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:pathway/core/theme/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pathway/features/profile/data/profile_repository.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -12,11 +17,12 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
 
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _currentPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final _profileRepo = ProfileRepository();
 
   final Map<String, bool> _tags = {
     'Wheelchair user': false,
@@ -26,28 +32,50 @@ class _EditProfilePageState extends State<EditProfilePage> {
     'Neurodivergent': false,
   };
 
-  ImageProvider? _profileImage;
+  XFile? _profileImage;
 
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
+    _loadProfileData();
+    _loadProfilePhoto();
+    _loadAccessibilityTags();
+  }
 
-    // TODO: preload from user profile
-    // ex:
-    // _firstNameCtrl.text = profile.firstName;
-    // _lastNameCtrl.text = profile.lastName;
-    // _profileImage = NetworkImage(profile.avatarUrl);
-    _firstNameCtrl.text = 'John';
-    _lastNameCtrl.text = 'Doe';
-    _profileImage = const AssetImage('');
+  Future<void> _loadProfileData() async {
+    final displayName = await _profileRepo.getDisplayName();
+    if (mounted) {
+      setState(() {
+        _nameCtrl.text = displayName ?? '';
+      });
+    }
+  }
+
+  Future<void> _loadProfilePhoto() async {
+    final url = await _profileRepo.getProfilePictureUrl();
+    if (mounted && url != null) {
+      setState(() {
+        _profileImage = XFile(url);
+      });
+    }
+  }
+
+  Future<void> _loadAccessibilityTags() async {
+    final tags = await _profileRepo.getUserAccessibilityTags();
+    if (mounted && tags != null) {
+      setState(() {
+        for (final tag in _tags.keys) {
+          _tags[tag] = tags.contains(tag);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
+    _nameCtrl.dispose();
     _currentPasswordCtrl.dispose();
     _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -55,14 +83,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickProfilePhoto() async {
-    // TODO: wire this with image_picker later
-    // final picker = ImagePicker();
-    // final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    // if (file == null) return;
-    // setState(() => _profileImage = FileImage(File(file.path)));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('TODO: add image picker')),
-    );
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (file == null) return;
+    setState(() => _profileImage = file);
+  }
+
+  ImageProvider? _avatarProvider() {
+    if (_profileImage == null) return null;
+    if (kIsWeb) {
+      return NetworkImage(_profileImage!.path);
+    }
+
+    if (_profileImage!.path.startsWith('http')) {
+      return NetworkImage(_profileImage!.path);
+    }
+
+    return FileImage(File(_profileImage!.path));
   }
 
   String? _validateRequired(String? v, String field) {
@@ -99,22 +136,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
       .map((e) => e.key)
       .toList();
 
-      // TODO: call API
-      // await profileService.updateProfile(
-      // firstName: _firstNameCtrl.text.trim(),
-      // lastName: _lastNameCtrl.text.trim(),
-      // tags: selectedTags,
-      // // photo: ...,
-      // );
-      //
-      // if (_newPasswordCtrl.text.trim().isNotEmpty) {
-      //  await profileService.changePassword(
-      //    currentPassword: _currentPasswordCtrl.text.trim(),
-      //    newPassword: _newPasswordCtrl.text.trim(),
-      //  );
-      // }
-
-      await Future.delayed(const Duration(milliseconds: 400)); // remove ltr
+      await _profileRepo.updateProfile(
+        displayName: _nameCtrl.text.trim(),
+        photo: _profileImage,
+        tags: selectedTags,
+        currentPassword: _currentPasswordCtrl.text,
+        newPassword: _newPasswordCtrl.text,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,8 +168,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         title: Padding(
           padding: EdgeInsets.only(top: 2),
           child: Text(
-                    'Edit profile information',
-                    
+                    'Edit profile information',                   
                   ),
             ),
       ),
@@ -157,7 +184,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 44,
-                      backgroundImage: _profileImage,
+                      backgroundImage: _avatarProvider(),
                     ),
                     Material(
                       shape: const CircleBorder(),
@@ -181,23 +208,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       const Text('Name', style: TextStyle(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: _firstNameCtrl,
+                        controller: _nameCtrl,
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
-                          labelText: 'First Name',
+                          labelText: 'Display name',
                           border: OutlineInputBorder(),
                         ),
-                        validator: (v) => _validateRequired(v, 'First name'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _lastNameCtrl,
-                        textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'Last name',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) => _validateRequired(v, 'Last name'),
+                        validator: (v) => _validateRequired(v, 'Display name'),
                       ),
                     ],
                   ),

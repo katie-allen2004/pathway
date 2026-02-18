@@ -9,14 +9,17 @@ class HomePage extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      // Implement AppBar with title and search icon
       appBar: AppBar(
+        // Introduce and stylize app title
         title: Text(
                         'Pathway',
-                      ), // Title text (upper left corner)
+                      ),
         centerTitle: false,
         actions: [
+          // Implement search icon
           IconButton(
-            icon: const Icon(Icons.search), // Search icon (upper right corner)
+            icon: const Icon(Icons.search),
             onPressed: () {
               // TODO: navigate to map/search page
             },
@@ -24,6 +27,7 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: SafeArea(
+        // Introduce scrollable content with padding
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -32,8 +36,9 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Welcome message for user
                     Text(
-                      'Welcome back, User!', // Opening text 
+                      'Welcome back, User!',
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -43,6 +48,7 @@ class HomePage extends StatelessWidget {
                       children: [
                         const Icon(Icons.location_on_outlined, size: 18), // Location icon
                         const SizedBox(width: 4),
+                        // Title defining the nearby venues section
                         Text(
                           'Nearby venues around you',
                           style: theme.textTheme.bodyMedium,
@@ -76,6 +82,7 @@ class HomePage extends StatelessWidget {
             SliverList.builder(
               itemCount: _dummyVenues.length,
               itemBuilder: (context, index) {
+                // Fill section with dummy venue cards
                 final venue = _dummyVenues[index];
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -96,6 +103,7 @@ class HomePage extends StatelessWidget {
               ),
             ),
             SliverList.builder(
+              // Fill section with dummy review cards
               itemCount: _dummyReviews.length,
               itemBuilder: (context, index) {
                 final review = _dummyReviews[index];
@@ -114,6 +122,7 @@ class HomePage extends StatelessWidget {
   }
 }
 
+// Define reusable widgets for the home page
 class _QuickActionsRow extends StatelessWidget {
   const _QuickActionsRow();
 

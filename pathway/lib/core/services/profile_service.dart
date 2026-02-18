@@ -1,4 +1,4 @@
-import 'api_client.dart';
+/*import 'api_client.dart';
 import '/models/user_profile.dart';
 
 class ProfileService {
@@ -11,4 +11,4 @@ class ProfileService {
     final data = await apiClient.get('/search?query=$query&keyword=$keyword');
     return (data as List).map((item) => UserProfile.fromJson(item)).toList();
   }
-}
+}*/

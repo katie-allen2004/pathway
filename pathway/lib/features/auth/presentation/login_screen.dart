@@ -76,8 +76,6 @@ class GradientStrokeText extends StatelessWidget {
     );
   }
 }
-
-// Change to StatefulWidget to manage form state and text input
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -91,6 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -100,23 +99,33 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submitLoginForm() async {
-    if (_formKey.currentState!.validate()) {
-      print('Attempting Login for: ${_emailController.text}');
+    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading) return;
 
-      try {
-        await Supabase.instance.client.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
+    setState(() => _isLoading = true);
 
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const PathwayNavShell()),
-        );
-      } on AuthException catch (e) {
-        print('Login failed: ${e.message}');
-      } catch (e) {
-        print('Login failed: $e');
-      }
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const PathwayNavShell()),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -124,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _navigateToSignup() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        // This links to the SignupScreen you just built!
+        // This links to the SignupScreen 
         builder: (context) => const SignupScreen(),
       ),
     );
@@ -132,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const bgColor = Color(0xFFE9ECF7); // close to your Figma tint (can tweak)
+    const bgColor = Color(0xFFE9ECF7); 
     const primary = Color(0xFF4754B8);
     const secondary = Color(0xFFB7BEF4);
 
@@ -321,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: double.infinity,
                               height: 44,
                               child: ElevatedButton(
-                                onPressed: _submitLoginForm,
+                                onPressed: _isLoading ? null : _submitLoginForm,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: primary,
                                   foregroundColor: Colors.white,
@@ -330,13 +339,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   elevation: 6,
                                 ),
-                                child: Text(
-                                  'log in',
-                                  style: GoogleFonts.lato(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        'log in',
+                                        style: GoogleFonts.lato(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                               ),
                             ),
 

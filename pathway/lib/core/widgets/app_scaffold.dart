@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
-import '../services/profile_service.dart';
-import '../services/api_client.dart';
+import '../../features/messaging/presentation/pages/conversations_page.dart';
 import '/models/user_profile.dart';
-import '../../features/auth/presentation/search_screen.dart'; 
+import '/features/auth/presentation/map_screen.dart';
 
+/*
 class MapScreen extends StatelessWidget {
   const MapScreen({Key? key}) : super(key: key);
   @override
@@ -16,6 +16,8 @@ class MapScreen extends StatelessWidget {
     ),
   );
 }
+*/
+
 
 class BadgesScreen extends StatelessWidget {
   const BadgesScreen({Key? key}) : super(key: key);
@@ -77,9 +79,8 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
   final List<Widget> _widgetOptions = <Widget>[
     const HomePage(),
     const MapScreen(),        
-    const SearchScreen(),
     const BadgesScreen(),      
-    const MessagesScreen(),  
+    const ConversationsPage(),  
     const ProfilePage(),    
   ];
 
@@ -150,18 +151,6 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
               selected: true,
             ),
             label: 'Map'
-          ),
-          // Search icon
-          BottomNavigationBarItem(
-            icon: const SelectedNavIcon(
-              icon: Icons.search_rounded,
-              selected: false,
-            ),
-            activeIcon: const SelectedNavIcon(
-              icon: Icons.search_rounded,
-              selected: true,
-            ),
-            label: 'Search'
           ),
           // Badges icon
           BottomNavigationBarItem(

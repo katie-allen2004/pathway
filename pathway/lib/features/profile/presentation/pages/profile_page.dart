@@ -5,6 +5,7 @@ import 'package:pathway/core/theme/app_theme.dart';
 import 'edit_profile_information_page.dart';
 import 'package:pathway/core/routing/app_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -225,62 +226,73 @@ return Scaffold(
                             ),
                           ],
                         ),
-                      )
-
-                )
+                        onTap: () {
+                          // Go to edit profile information page
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.notifications_off_rounded),
+                        title: const Text(
+                          'Blocked and muted accounts',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        onTap: () {
+                          // Go to notification settings page
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
               // Help and support section with options for help center, contact us, and privacy policy
             SliverToBoxAdapter(
-                child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Card(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ListTile(
-                              dense: true,
-                              leading: const Icon(Icons.help_center_rounded),
-                              title: const Text('Help',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                )
-                                              ),
-                              onTap: () {
-                                // Sign out page
-                              },
-                            ),
-                            const Divider(height: 1),
-                            ListTile(
-                              dense: true,
-                              leading: const Icon(Icons.contact_page_rounded),
-                              title: const Text('Contact us',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                )
-                                              ),
-                              onTap: () {
-                                // Go to contact us page
-                              },
-                            ),
-                            const Divider(height: 1),
-                            ListTile(
-                              dense: true,
-                              leading: const Icon(Icons.lock_outline_rounded),
-                              title: const Text('Privacy Policy',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                )
-                                              ),
-                              onTap: () {
-                                // Go to privacy policy page
-                              },
-                            ),
-                            const Divider(height: 1),   
-                          ],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Card(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.help_center_rounded),
+                        title: const Text(
+                          'Help',
+                          style: TextStyle(fontSize: 15),
                         ),
-                      )
-
-                )
+                        onTap: () {
+                          // Sign out page
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.contact_page_rounded),
+                        title: const Text(
+                          'Contact us',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        onTap: () {
+                          // Go to contact us page
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.lock_outline_rounded),
+                        title: const Text(
+                          'Privacy Policy',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        onTap: () {
+                          // Go to privacy policy page
+                        },
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  ),
+                ),
               ),
             // Sign out option at the bottom of the profile page, separated from other settings and options
             SliverToBoxAdapter(
@@ -333,4 +345,61 @@ class _ProfileHeaderData {
     required this.email,
     required this.avatarUrl,
 });
+}
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Card(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(
+                          Icons.logout_rounded,
+                          color: Colors.white,
+                        ),
+                        title: const Text(
+                          "Sign out",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                        tileColor: const Color.fromARGB(255, 76, 89, 185),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                        ),
+                        onTap: () async {
+                          try {
+                            await Supabase.instance.client.auth.signOut();
+
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Sign out failed: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

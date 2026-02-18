@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart'; // Added Google Fonts package for custom font
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'features/auth/presentation/map_screen.dart';
+import '../../features/messaging/presentation/pages/conversations_page.dart';
 
   Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,3 +60,4 @@ class PathwayApp extends StatelessWidget {
     );
   }
 }
+

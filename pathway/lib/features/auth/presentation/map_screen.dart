@@ -12,11 +12,11 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final _supabase = Supabase.instance.client;
-  
+
   // Data State
-  List<Map<String, dynamic>> _allVenues = [];     
-  List<Map<String, dynamic>> _filteredVenues = []; 
-  
+  List<Map<String, dynamic>> _allVenues = [];
+  List<Map<String, dynamic>> _filteredVenues = [];
+
   // Search Logic
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
@@ -38,10 +38,7 @@ class _MapScreenState extends State<MapScreen> {
   /// Grabs raw data from Supabase
   Future<void> _loadVenues() async {
     try {
-      final data = await _supabase
-          .schema('pathway')
-          .from('venues')
-          .select();
+      final data = await _supabase.schema('pathway').from('venues').select();
 
       setState(() {
         _allVenues = List<Map<String, dynamic>>.from(data);
@@ -57,7 +54,7 @@ class _MapScreenState extends State<MapScreen> {
   ///  Logic to narrow down venues based on name or city
   void _runFilter() {
     final query = _searchController.text.toLowerCase().trim();
-    
+
     setState(() {
       if (query.isEmpty) {
         _filteredVenues = _allVenues;
@@ -73,7 +70,7 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Toggle Favorite Status
   Future<void> _handleFavoriteToggle(VenueModel venue) async {
-    final bool newStatus = !(venue.isSaved ?? false);
+    final bool newStatus = !venue.isSaved;
     try {
       await _supabase
           .schema('pathway')
@@ -99,19 +96,28 @@ class _MapScreenState extends State<MapScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Venue Name")),
-            TextField(controller: cityController, decoration: const InputDecoration(labelText: "City")),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Venue Name"),
+            ),
+            TextField(
+              controller: cityController,
+              decoration: const InputDecoration(labelText: "City"),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
                 await _supabase.schema('pathway').from('venues').insert({
                   'name': nameController.text,
                   'city': cityController.text,
-                  'is_saved': false, 
+                  'is_saved': false,
                 });
                 if (mounted) Navigator.pop(context);
                 _loadVenues();
@@ -125,7 +131,10 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Update Existing Venue
-  Future<void> _showEditVenueForm(BuildContext context, Map<String, dynamic> venue) async {
+  Future<void> _showEditVenueForm(
+    BuildContext context,
+    Map<String, dynamic> venue,
+  ) async {
     final nameController = TextEditingController(text: venue['name']);
     final cityController = TextEditingController(text: venue['city']);
 
@@ -136,19 +145,32 @@ class _MapScreenState extends State<MapScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Name")),
-            TextField(controller: cityController, decoration: const InputDecoration(labelText: "City")),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Name"),
+            ),
+            TextField(
+              controller: cityController,
+              decoration: const InputDecoration(labelText: "City"),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              await _supabase.schema('pathway').from('venues').update({
-                'name': nameController.text,
-                'city': cityController.text,
-              }).eq('venue_id', venue['venue_id']);
-              
+              await _supabase
+                  .schema('pathway')
+                  .from('venues')
+                  .update({
+                    'name': nameController.text,
+                    'city': cityController.text,
+                  })
+                  .eq('venue_id', venue['venue_id']);
+
               if (mounted) Navigator.pop(context);
               _loadVenues();
             },
@@ -160,23 +182,33 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   ///  Delete Venue
-  Future<void> _showDeleteConfirmation(BuildContext context, dynamic venueId) async {
+  Future<void> _showDeleteConfirmation(
+    BuildContext context,
+    dynamic venueId,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Venue?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
           TextButton(
-            onPressed: () => Navigator.pop(context, true), 
-            child: const Text("Delete", style: TextStyle(color: Colors.red))
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      await _supabase.schema('pathway').from('venues').delete().eq('venue_id', venueId);
+      await _supabase
+          .schema('pathway')
+          .from('venues')
+          .delete()
+          .eq('venue_id', venueId);
       _loadVenues();
     }
   }
@@ -191,12 +223,11 @@ class _MapScreenState extends State<MapScreen> {
         // StatefulBuilder allows the tray to update while it is open
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            
             // This function forces the modal to repaint when the search controller changes
             void syncListener() {
               if (mounted) setModalState(() {});
             }
-            
+
             _searchController.addListener(syncListener);
 
             return Container(
@@ -209,47 +240,67 @@ class _MapScreenState extends State<MapScreen> {
                 children: [
                   Container(
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  const Text("Discovery", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  
+                  const Text(
+                    "Discovery",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+
                   // Visual Feedback of Search Results
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      _searchController.text.isEmpty 
-                        ? "Showing all venues" 
-                        : "Found ${_filteredVenues.length} results for '${_searchController.text}'",
+                      _searchController.text.isEmpty
+                          ? "Showing all venues"
+                          : "Found ${_filteredVenues.length} results for '${_searchController.text}'",
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ),
 
                   Expanded(
-                    child: _filteredVenues.isEmpty 
-                    ? const Center(child: Text("No matches found."))
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        itemCount: _filteredVenues.length,
-                        itemBuilder: (context, i) {
-                          final venueModel = VenueModel.fromJson(_filteredVenues[i]);
-                          return VenueCard(
-                            venue: venueModel, 
-                            onFavoriteToggle: () async {
-                              await _handleFavoriteToggle(venueModel);
-                              setModalState(() {}); 
+                    child: _filteredVenues.isEmpty
+                        ? const Center(child: Text("No matches found."))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            itemCount: _filteredVenues.length,
+                            itemBuilder: (context, i) {
+                              final venueModel = VenueModel.fromJson(
+                                _filteredVenues[i],
+                              );
+                              return VenueCard(
+                                venue: venueModel,
+                                onFavoriteToggle: () async {
+                                  await _handleFavoriteToggle(venueModel);
+                                  setModalState(() {});
+                                },
+                                onEdit: () async {
+                                  await _showEditVenueForm(
+                                    context,
+                                    _filteredVenues[i],
+                                  );
+                                  await _loadVenues(); // <— add
+                                  setModalState(
+                                    () {},
+                                  ); // <— keep (now runs after data refresh)
+                                },
+
+                                onDelete: () async {
+                                  await _showDeleteConfirmation(
+                                    context,
+                                    _filteredVenues[i]['venue_id'],
+                                  );
+                                  await _loadVenues(); // <— add
+                                  setModalState(() {});
+                                },
+                              );
                             },
-                            onEdit: () async {
-                              await _showEditVenueForm(context, _filteredVenues[i]);
-                              setModalState(() {}); 
-                            }, 
-                            onDelete: () async {
-                              await _showDeleteConfirmation(context, _filteredVenues[i]['venue_id']);
-                              setModalState(() {});
-                            },
-                          );
-                        },
-                      ),
+                          ),
                   ),
                 ],
               ),
@@ -272,7 +323,12 @@ class _MapScreenState extends State<MapScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-                Container(color: Colors.grey[200], child: const Center(child: Text("Map View"))),
+                Container(
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Text('Map coming soon — Discovery tray is active'),
+                  ),
+                ),
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -284,14 +340,19 @@ class _MapScreenState extends State<MapScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(30),
-                              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 8),
+                              ],
                             ),
                             child: TextField(
                               controller: _searchController,
                               decoration: const InputDecoration(
-                                hintText: "Search venue or city...", 
+                                hintText: "Search venue or city...",
                                 border: InputBorder.none,
-                                icon: Icon(Icons.search, color: Colors.deepPurple),
+                                icon: Icon(
+                                  Icons.search,
+                                  color: Colors.deepPurple,
+                                ),
                               ),
                             ),
                           ),
@@ -301,8 +362,14 @@ class _MapScreenState extends State<MapScreen> {
                           onTap: _showDiscoveryTray,
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(color: Colors.deepPurple, shape: BoxShape.circle),
-                            child: const Icon(Icons.explore, color: Colors.white),
+                            decoration: const BoxDecoration(
+                              color: Colors.deepPurple,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.explore,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],

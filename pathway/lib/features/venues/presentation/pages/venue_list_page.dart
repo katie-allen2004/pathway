@@ -27,7 +27,10 @@ class _VenueListPageState extends State<VenueListPage> {
         title: const Text("Delete Venue?"),
         content: const Text("This action cannot be undone."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -37,13 +40,17 @@ class _VenueListPageState extends State<VenueListPage> {
     );
 
     if (confirmed == true) {
-      await _supabase.schema('pathway').from('venues').delete().eq('venue_id', venueId);
+      await _supabase
+          .schema('pathway')
+          .from('venues')
+          .delete()
+          .eq('venue_id', venueId);
       _refresh();
     }
   }
 
   void _handleEdit(VenueModel venue) {
-    debugPrint("Editing ${venue.name}"); 
+    debugPrint("Editing ${venue.name}");
   }
 
   @override
@@ -52,7 +59,8 @@ class _VenueListPageState extends State<VenueListPage> {
       appBar: AppBar(title: const Text("Discovery")),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<VenueModel>>( // Added  typing
+        child: FutureBuilder<List<VenueModel>>(
+          // Added  typing
           future: _repo.fetchVenues(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -69,15 +77,15 @@ class _VenueListPageState extends State<VenueListPage> {
               itemCount: snapshot.data!.length,
               itemBuilder: (context, i) {
                 final venueData = snapshot.data![i];
-                
+
                 return VenueCard(
-                  venue: venueData, 
-                  onFavoriteToggle: () => _repo.toggleSave(
-                    venueData.id, 
-                    venueData.isSaved ?? false
-                  ).then((_) => _refresh()),
-                  onEdit: () => _handleEdit(venueData), 
-                  onDelete: () => _handleDelete(venueData.id), 
+                  venue: venueData,
+                  onFavoriteToggle: () => _repo
+                      .toggleSave(venueData.id, venueData.isSaved)
+                      .then((_) => _refresh()),
+
+                  onEdit: () => _handleEdit(venueData),
+                  onDelete: () => _handleDelete(venueData.id),
                 );
               },
             );

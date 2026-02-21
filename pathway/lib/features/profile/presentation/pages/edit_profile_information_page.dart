@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:pathway/core/theme/app_theme.dart';
+import 'package:pathway/core/theme/theme.dart';
+import 'package:pathway/core/widgets/widgets.dart';
 import 'package:pathway/features/profile/data/profile_repository.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';

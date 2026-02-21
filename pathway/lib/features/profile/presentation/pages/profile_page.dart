@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:pathway/core/theme/app_theme.dart';
+import 'package:pathway/core/theme/theme.dart';
+import 'package:pathway/core/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pathway/core/routing/app_router.dart';
 import 'edit_profile_information_page.dart';
 import 'notification_settings_page.dart';
+import 'accessibility_settings_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -167,8 +169,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (changed == true) _refresh();
                           },
                     ),
-                  TileInstance(icon: Icons.settings_accessibility_rounded, title: 'Accessibility settings', onTap: () {
-                    // TODO: Implement accessibility settings page
+                  TileInstance(icon: Icons.settings_accessibility_rounded, title: 'Accessibility settings', onTap: () async {
+                            final changes = await routePage(context, const AccessibilitySettingsPage());
+                            if (changes == true) _refresh();
                   }),
                 ]
               ),

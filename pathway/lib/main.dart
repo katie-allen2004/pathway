@@ -1,9 +1,86 @@
 import 'package:flutter/material.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart'; // Added Google Fonts package for custom font
+import 'core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-Future<void> main() async {
+ThemeData buildPathwayTheme() {
+  final base = ThemeData(useMaterial3: true);
+
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: AppColors.primary,
+    brightness: Brightness.light,
+  );
+
+  return base.copyWith(
+    colorScheme: colorScheme,
+    scaffoldBackgroundColor: AppColors.background,
+
+    textTheme: GoogleFonts.robotoTextTheme(base.textTheme).copyWith(
+      bodyMedium: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+      )
+    ),
+
+    appBarTheme: base.appBarTheme.copyWith(
+      backgroundColor: AppColors.primary,
+      iconTheme: const IconThemeData(color: Colors.white, size: 22),
+      titleTextStyle: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w700,
+        fontSize: 25,
+      ),
+    ),
+
+    cardTheme: const CardThemeData(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(AppRadii.card)),
+      ),
+    ),
+
+    inputDecorationTheme: InputDecorationTheme(
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadii.input),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadii.input),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadii.input),
+        borderSide: BorderSide(color: AppColors.primary, width: 2),
+      ),
+    ),
+    
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ),
+    ),
+
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppColors.primary;
+        }
+        return null;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppColors.primary.withValues(alpha: 0.4);
+        }
+        return null;
+      }),
+    ),
+  );
+}
+  Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   /* 
@@ -33,28 +110,7 @@ class PathwayApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Pathway',
-      theme: ThemeData(
-        scaffoldBackgroundColor: Color.fromARGB(
-          255,
-          233,
-          234,
-          247,
-        ), // Set standard background color for all screens
-        appBarTheme: const AppBarTheme(
-          // Set theme of icons in AppBar
-          iconTheme: IconThemeData(color: Colors.white, size: 22),
-          // Set theme of title text in AppBar
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 25,
-          ),
-        ),
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        textTheme:
-            GoogleFonts.robotoTextTheme(), // Set Roboto as the default font for the app
-      ),
+      theme: buildPathwayTheme(),
       home: const LoginScreen(),
     );
   }

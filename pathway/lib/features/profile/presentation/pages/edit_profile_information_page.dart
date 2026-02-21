@@ -187,7 +187,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ),
                     Material(
                       shape: const CircleBorder(),
-                      color: const Color.fromARGB(255, 76, 89, 185),
+                      color: AppColors.primary,
                       child: IconButton(
                         icon: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
                         onPressed: _isSaving ? null : _pickProfilePhoto,
@@ -211,7 +211,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
                           labelText: 'Display name',
-                          border: OutlineInputBorder(),
                         ),
                         validator: (v) => _validateRequired(v, 'Display name'),
                       ),
@@ -235,7 +234,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'Current password',
-                          border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -244,7 +242,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'New password (minimum 8 characters)',
-                          border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -253,7 +250,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'Confirm new password',
-                          border: OutlineInputBorder(),
                         ),
                         validator: _validatePasswordConfirm,
                       ),
@@ -296,7 +292,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
                       const SizedBox(height: 8),
                       const Text(
-                        'Choose what youre comfortable sharing.',
+                        'Choose what you\'re comfortable sharing.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       )
                     ],
@@ -311,11 +307,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 76, 89, 185),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
                   child: _isSaving
                     ? const SizedBox(
                       height: 20,

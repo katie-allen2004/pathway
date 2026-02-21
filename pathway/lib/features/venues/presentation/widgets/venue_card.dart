@@ -19,14 +19,28 @@ class VenueCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Check if saved; dynamic handles the boolean check from your state
-    final bool isSaved = venue.isSaved;
+    final isSaved = venue.isSaved;
+    Icon(isSaved ? Icons.favorite : Icons.favorite_border);
 
     return InkWell(
       borderRadius: BorderRadius.circular(15),
       onTap: () {
+       
+        if (venue.id.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("BUG: venue.id is empty (check mapping)"),
+            ),
+          );
+          return;
+        }
+
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => VenueDetailPage(venue: venue)),
+          MaterialPageRoute(
+            builder: (_) =>
+                VenueDetailPage(venueId: venue.id, initialVenue: venue),
+          ),
         );
       },
       child: Card(
@@ -41,7 +55,8 @@ class VenueCard extends StatelessWidget {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
+
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.place, color: Colors.blue),

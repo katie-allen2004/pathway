@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/messaging/presentation/pages/conversations_page.dart';
-import '/models/user_profile.dart';
 import '/features/auth/presentation/map_screen.dart';
 
 /*

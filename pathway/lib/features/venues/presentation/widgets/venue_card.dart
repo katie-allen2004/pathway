@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '/features/venues/data/venue_model.dart';
+import '/features/venues/presentation/pages/venue_detail_page.dart';
 
 class VenueCard extends StatelessWidget {
-  final VenueModel venue; 
+  final VenueModel venue;
   final VoidCallback onFavoriteToggle;
-  final VoidCallback onEdit;   // New callback for Edit
+  final VoidCallback onEdit; // New callback for Edit
   final VoidCallback onDelete; // New callback for Delete
 
   const VenueCard({
@@ -18,84 +19,114 @@ class VenueCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Check if saved; dynamic handles the boolean check from your state
-    final bool isSaved = venue.isSaved ?? false;
+    final isSaved = venue.isSaved;
+    Icon(isSaved ? Icons.favorite : Icons.favorite_border);
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            //  Visual Identifier
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.place, color: Colors.blue),
+    return InkWell(
+      borderRadius: BorderRadius.circular(15),
+      onTap: () {
+       
+        if (venue.id.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("BUG: venue.id is empty (check mapping)"),
             ),
-            const SizedBox(width: 16),
-            
-            // Text Details from Database Schema
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    venue.name ?? 'Unknown Venue', // 'name' column
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          );
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                VenueDetailPage(venueId: venue.id, initialVenue: venue),
+          ),
+        );
+      },
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            children: [
+              //  Visual Identifier
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.place, color: Colors.blue),
+              ),
+              const SizedBox(width: 16),
+
+              // Text Details from Database Schema
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      venue.name, // name is non-null in your model
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      "${venue.addressLine1 ?? ''}, ${venue.city ?? 'Location'}",
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Favorite (Heart) Button
+              IconButton(
+                icon: Icon(
+                  venue.isSaved ? Icons.favorite : Icons.favorite_border,
+                  color: venue.isSaved ? Colors.red : Colors.grey,
+                ),
+                onPressed: onFavoriteToggle,
+              ),
+
+              // Edit/Delete menu
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: Icon(Icons.edit, size: 20),
+                      title: Text('Edit'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
                   ),
-                  Text(
-                    "${venue.addressLine1 ?? ''}, ${venue.city ?? 'Location'}", //
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete, color: Colors.red, size: 20),
+                      title: Text(
+                        'Delete',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
                   ),
                 ],
               ),
-            ),
-
-            //  Favorite (Heart) Button
-            IconButton(
-              icon: Icon(
-                isSaved ? Icons.favorite : Icons.favorite_border,
-                color: (isSaved == true) ? Colors.red : Colors.grey,
-              ),
-              onPressed: onFavoriteToggle,
-            ),
-
-            // 4.  (Edit/Delete)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.grey),
-              onSelected: (value) {
-                if (value == 'edit') onEdit();
-                if (value == 'delete') onDelete();
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: ListTile(
-                    leading: Icon(Icons.edit, size: 20),
-                    title: Text('Edit'),
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: ListTile(
-                    leading: Icon(Icons.delete, color: Colors.red, size: 20),
-                    title: Text('Delete', style: TextStyle(color: Colors.red)),
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

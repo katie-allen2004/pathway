@@ -1,7 +1,6 @@
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:pathway/core/utils/validators.dart';
-import 'login_screen.dart';
 import 'package:pathway/features/auth/data/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -84,7 +83,7 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     const bgColor = Color(0xFFE9ECF7);
     const primary = Color(0xFF4754B8);
-    const secondary = Color(0xFFB7BEF4);
+    
 
     final size = MediaQuery.of(context).size;
 
@@ -164,7 +163,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         borderRadius: BorderRadius.circular(22),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.10),
+                            color: Colors.black.withValues(alpha: 0.10),
+
                             blurRadius: 18,
                             offset: const Offset(0, 10),
                           ),

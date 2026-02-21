@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pathway/core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'package:pathway/core/routing/app_router.dart';
 import 'edit_profile_information_page.dart';
+import 'notification_settings_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -154,131 +155,50 @@ class _ProfilePageState extends State<ProfilePage> {
           child: CustomScrollView(
             slivers: [
               // Profile section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Card(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.person),
-                          title: const Text(
-                            'Edit profile information',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () async {
-                            final changed = await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const EditProfilePage(),
-                              ),
-                            );
+              TileSection(
+                tiles: [
+                  TileInstance(icon: Icons.person, title: 'Edit profile information', onTap: () async {
+                            final changed = await routePage(context, const EditProfilePage());
                             if (changed == true) _refresh();
                           },
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.notifications_rounded),
-                          title: const Text(
-                            'Notifications',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.settings_accessibility_rounded),
-                          title: const Text(
-                            'Accessibility settings',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                      ],
                     ),
-                  ),
-                ),
+                  TileInstance(icon: Icons.notifications_rounded, title: 'Notifications', onTap: () async {
+                            final changed = await routePage(context, const NotificationSettingsPage());
+                            if (changed == true) _refresh();
+                          },
+                    ),
+                  TileInstance(icon: Icons.settings_accessibility_rounded, title: 'Accessibility settings', onTap: () {
+                    // TODO: Implement accessibility settings page
+                  }),
+                ]
               ),
 
               // Security section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Card(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.security_rounded),
-                          title: const Text(
-                            'Security',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.notifications_off_rounded),
-                          title: const Text(
-                            'Blocked and muted accounts',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              TileSection(
+                tiles: [
+                  TileInstance(icon: Icons.security_rounded, title: 'Security settings', onTap: () {
+                    // TODO: Implement security settings page
+                  }),
+                  TileInstance(icon: Icons.notifications_off_rounded, title: 'Blocked and muted accounts', onTap: () {
+                    // TODO: Implement blocked/muted accounts page
+                  }),
+                ]
               ),
 
               // Help section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Card(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.help_center_rounded),
-                          title: const Text(
-                            'Help',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.contact_page_rounded),
-                          title: const Text(
-                            'Contact us',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.lock_outline_rounded),
-                          title: const Text(
-                            'Privacy Policy',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              TileSection(
+                tiles: [
+                  TileInstance(icon: Icons.help_center_rounded, title: 'Help', onTap: () {
+                    // TODO: Implement help page
+                  }),
+                  TileInstance(icon: Icons.contact_page_rounded, title: 'Contact us', onTap: () {
+                    // TODO: Implement contact us page
+                  }),
+                  TileInstance(icon: Icons.lock_outline_rounded, title: 'Privacy Policy', onTap: () {
+                    // TODO: Implement privacy policy page
+                  }),
+                ]
               ),
-
               // Sign out section
               SliverToBoxAdapter(
                 child: Padding(
@@ -301,7 +221,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               color: Colors.white,
                             ),
                           ),
-                          tileColor: const Color.fromARGB(255, 76, 89, 185),
+                          tileColor: AppColors.primary,
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.all(Radius.circular(10)),
                           ),

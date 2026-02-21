@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '/features/venues/data/venue_repository.dart';
 import '/features/venues/data/venue_model.dart';
 import '/features/venues/presentation/widgets/venue_card.dart';
 
@@ -12,12 +13,12 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final _supabase = Supabase.instance.client;
+  final _repo = VenueRepository();
 
-  // Data State
-  List<Map<String, dynamic>> _allVenues = [];
-  List<Map<String, dynamic>> _filteredVenues = [];
+  // ✅ Clean state: use models directly
+  List<VenueModel> _allVenues = [];
+  List<VenueModel> _filteredVenues = [];
 
-  // Search Logic
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
 
@@ -25,7 +26,6 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _loadVenues();
-    // This listener ensures that every keystroke updates the master list
     _searchController.addListener(_runFilter);
   }
 
@@ -35,14 +35,13 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
-  /// Grabs raw data from Supabase
   Future<void> _loadVenues() async {
     try {
-      final data = await _supabase.schema('pathway').from('venues').select();
+      final venues = await _repo.fetchVenues();
 
       setState(() {
-        _allVenues = List<Map<String, dynamic>>.from(data);
-        _runFilter(); // Apply search filter immediately to new data
+        _allVenues = venues;
+        _filteredVenues = venues; // default show all
         _isLoading = false;
       });
     } catch (e) {
@@ -51,7 +50,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  ///  Logic to narrow down venues based on name or city
   void _runFilter() {
     final query = _searchController.text.toLowerCase().trim();
 
@@ -59,35 +57,24 @@ class _MapScreenState extends State<MapScreen> {
       if (query.isEmpty) {
         _filteredVenues = _allVenues;
       } else {
-        _filteredVenues = _allVenues.where((venue) {
-          final String name = (venue['name'] ?? "").toString().toLowerCase();
-          final String city = (venue['city'] ?? "").toString().toLowerCase();
-          return name.contains(query) || city.contains(query);
+        _filteredVenues = _allVenues.where((v) {
+          final name = v.name.toLowerCase();
+          final address = (v.addressLine1 ?? '').toLowerCase();
+          return name.contains(query) || address.contains(query);
         }).toList();
       }
     });
   }
 
-  /// Toggle Favorite Status
   Future<void> _handleFavoriteToggle(VenueModel venue) async {
-    final bool newStatus = !venue.isSaved;
-    try {
-      await _supabase
-          .schema('pathway')
-          .from('venues')
-          .update({'is_saved': newStatus})
-          .eq('venue_id', venue.id);
-
-      await _loadVenues(); // Refresh data
-    } catch (e) {
-      debugPrint('Favorite Toggle Error: $e');
-    }
+    // ✅ use repository helper (less repeated code)
+    await _repo.toggleSave(venue.id, venue.isSaved);
+    await _loadVenues();
   }
 
-  /// Create New Venue
   Future<void> _showAddVenueDialog() async {
     final nameController = TextEditingController();
-    final cityController = TextEditingController();
+    final addressController = TextEditingController();
 
     showDialog(
       context: context,
@@ -101,8 +88,8 @@ class _MapScreenState extends State<MapScreen> {
               decoration: const InputDecoration(labelText: "Venue Name"),
             ),
             TextField(
-              controller: cityController,
-              decoration: const InputDecoration(labelText: "City"),
+              controller: addressController,
+              decoration: const InputDecoration(labelText: "Address"),
             ),
           ],
         ),
@@ -113,15 +100,18 @@ class _MapScreenState extends State<MapScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                await _supabase.schema('pathway').from('venues').insert({
-                  'name': nameController.text,
-                  'city': cityController.text,
-                  'is_saved': false,
-                });
-                if (mounted) Navigator.pop(context);
-                _loadVenues();
-              }
+              if (nameController.text.trim().isEmpty) return;
+
+              final navigator = Navigator.of(context);
+
+              await _supabase.from('venues').insert({
+                'name': nameController.text.trim(),
+                'address': addressController.text.trim(),
+              });
+
+              if (!mounted) return;
+              navigator.pop();
+              await _loadVenues();
             },
             child: const Text("Save"),
           ),
@@ -130,13 +120,9 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Update Existing Venue
-  Future<void> _showEditVenueForm(
-    BuildContext context,
-    Map<String, dynamic> venue,
-  ) async {
-    final nameController = TextEditingController(text: venue['name']);
-    final cityController = TextEditingController(text: venue['city']);
+  Future<void> _showEditVenueForm(BuildContext context, VenueModel venue) async {
+    final nameController = TextEditingController(text: venue.name);
+    final addressController = TextEditingController(text: venue.addressLine1 ?? '');
 
     showDialog(
       context: context,
@@ -150,8 +136,8 @@ class _MapScreenState extends State<MapScreen> {
               decoration: const InputDecoration(labelText: "Name"),
             ),
             TextField(
-              controller: cityController,
-              decoration: const InputDecoration(labelText: "City"),
+              controller: addressController,
+              decoration: const InputDecoration(labelText: "Address"),
             ),
           ],
         ),
@@ -162,17 +148,17 @@ class _MapScreenState extends State<MapScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await _supabase
-                  .schema('pathway')
-                  .from('venues')
-                  .update({
-                    'name': nameController.text,
-                    'city': cityController.text,
-                  })
-                  .eq('venue_id', venue['venue_id']);
+              final navigator = Navigator.of(context);
 
-              if (mounted) Navigator.pop(context);
-              _loadVenues();
+              // ✅ FIX: this must be UPDATE, not INSERT
+              await _supabase.from('venues').update({
+                'name': nameController.text.trim(),
+                'address': addressController.text.trim(),
+              }).eq('id', venue.id);
+
+              if (!mounted) return;
+              navigator.pop();
+              await _loadVenues();
             },
             child: const Text("Update"),
           ),
@@ -181,11 +167,7 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  ///  Delete Venue
-  Future<void> _showDeleteConfirmation(
-    BuildContext context,
-    dynamic venueId,
-  ) async {
+  Future<void> _showDeleteConfirmation(BuildContext context, String venueId) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -204,31 +186,26 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     if (confirmed == true) {
-      await _supabase
-          .schema('pathway')
-          .from('venues')
-          .delete()
-          .eq('venue_id', venueId);
-      _loadVenues();
+      await _supabase.from('venues').delete().eq('id', venueId);
+      if (!mounted) return;
+      await _loadVenues();
     }
   }
 
-  /// Displays the filtered list
   void _showDiscoveryTray() {
-    showModalBottomSheet(
+    void Function()? syncListener;
+
+    final sheetFuture = showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        // StatefulBuilder allows the tray to update while it is open
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            // This function forces the modal to repaint when the search controller changes
-            void syncListener() {
+            syncListener = () {
               if (mounted) setModalState(() {});
-            }
-
-            _searchController.addListener(syncListener);
+            };
+            _searchController.addListener(syncListener!);
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
@@ -251,8 +228,6 @@ class _MapScreenState extends State<MapScreen> {
                     "Discovery",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-
-                  // Visual Feedback of Search Results
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
@@ -262,7 +237,6 @@ class _MapScreenState extends State<MapScreen> {
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ),
-
                   Expanded(
                     child: _filteredVenues.isEmpty
                         ? const Center(child: Text("No matches found."))
@@ -270,32 +244,19 @@ class _MapScreenState extends State<MapScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             itemCount: _filteredVenues.length,
                             itemBuilder: (context, i) {
-                              final venueModel = VenueModel.fromJson(
-                                _filteredVenues[i],
-                              );
+                              final v = _filteredVenues[i];
                               return VenueCard(
-                                venue: venueModel,
+                                venue: v,
                                 onFavoriteToggle: () async {
-                                  await _handleFavoriteToggle(venueModel);
+                                  await _handleFavoriteToggle(v);
                                   setModalState(() {});
                                 },
                                 onEdit: () async {
-                                  await _showEditVenueForm(
-                                    context,
-                                    _filteredVenues[i],
-                                  );
-                                  await _loadVenues(); // <— add
-                                  setModalState(
-                                    () {},
-                                  ); // <— keep (now runs after data refresh)
+                                  await _showEditVenueForm(context, v);
+                                  setModalState(() {});
                                 },
-
                                 onDelete: () async {
-                                  await _showDeleteConfirmation(
-                                    context,
-                                    _filteredVenues[i]['venue_id'],
-                                  );
-                                  await _loadVenues(); // <— add
+                                  await _showDeleteConfirmation(context, v.id);
                                   setModalState(() {});
                                 },
                               );
@@ -309,6 +270,12 @@ class _MapScreenState extends State<MapScreen> {
         );
       },
     );
+
+    sheetFuture.whenComplete(() {
+      if (syncListener != null) {
+        _searchController.removeListener(syncListener!);
+      }
+    });
   }
 
   @override
@@ -347,12 +314,9 @@ class _MapScreenState extends State<MapScreen> {
                             child: TextField(
                               controller: _searchController,
                               decoration: const InputDecoration(
-                                hintText: "Search venue or city...",
+                                hintText: "Search venue or address...",
                                 border: InputBorder.none,
-                                icon: Icon(
-                                  Icons.search,
-                                  color: Colors.deepPurple,
-                                ),
+                                icon: Icon(Icons.search, color: Colors.deepPurple),
                               ),
                             ),
                           ),
@@ -366,10 +330,7 @@ class _MapScreenState extends State<MapScreen> {
                               color: Colors.deepPurple,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
-                              Icons.explore,
-                              color: Colors.white,
-                            ),
+                            child: const Icon(Icons.explore, color: Colors.white),
                           ),
                         ),
                       ],

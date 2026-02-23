@@ -10,7 +10,7 @@ class VenueRepository {
         .select('*, pathway.saved_venues(id)');
     return (response as List).map((json) { 
       final isSaved = (json['saved_venues'] as List).isNotEmpty;
-      return VenueModel.fromJson(json, isSaved: isSaved);
+      return VenueModel.fromJson(json);
     }).toList();
   }
   Future<void> toggleSave(int venueId, bool currentlySaved) async {

@@ -117,7 +117,8 @@ class _ConversationsPageState extends State<ConversationsPage> {
           subtitle: Text(user.bio, maxLines: 2, overflow: TextOverflow.ellipsis),
           onTap: () {
             // This will link to your messaging system later
-            print("Start conversation with: ${user.userName} (ID: ${user.id})");
+            debugPrint(
+"Start conversation with: ${user.userName} (ID: ${user.id})");
           },
         );
       },

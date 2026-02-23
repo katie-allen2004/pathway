@@ -26,7 +26,10 @@ class _VenueListPageState extends State<VenueListPage> {
         title: const Text("Delete Venue?"),
         content: const Text("This action cannot be undone."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -36,7 +39,11 @@ class _VenueListPageState extends State<VenueListPage> {
     );
 
     if (confirmed == true) {
-      await _supabase.schema('pathway').from('venues').delete().eq('venue_id', venueId);
+      await _supabase
+          .schema('pathway')
+          .from('venues')
+          .delete()
+          .eq('venue_id', venueId);
       _refresh();
     }
   }
@@ -54,6 +61,7 @@ class _VenueListPageState extends State<VenueListPage> {
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<List<VenueModel>>(
+          // Added  typing
           future: _repo.fetchVenues(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -81,6 +89,15 @@ class _VenueListPageState extends State<VenueListPage> {
                   ).then((_) => _refresh()),
                   onEdit: isOwner ? () => _handleEdit(venueData) : null,
                   onDelete: isOwner ? () => _handleDelete(venueData.id) : null,
+
+                return VenueCard(
+                  venue: venueData,
+                  onFavoriteToggle: () => _repo
+                      .toggleSave(venueData.id, venueData.isSaved)
+                      .then((_) => _refresh()),
+
+                  onEdit: () => _handleEdit(venueData),
+                  onDelete: () => _handleDelete(venueData.id),
                 );
               },
             );

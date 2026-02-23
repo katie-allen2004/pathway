@@ -15,11 +15,17 @@ class _VenueListPageState extends State<VenueListPage> {
   final VenueRepository _repo = VenueRepository();
   final _supabase = Supabase.instance.client;
 
+  // Key to force FutureBuilder to reload
+  Key _refreshKey = UniqueKey();
+
   Future<void> _refresh() async {
-    setState(() {});
+    setState(() {
+      _refreshKey = UniqueKey();
+    });
   }
 
-  Future<void> _handleDelete(dynamic venueId) async {
+  /// Handles deletion using the integer venue_id
+  Future<void> _handleDelete(int venueId) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -39,17 +45,24 @@ class _VenueListPageState extends State<VenueListPage> {
     );
 
     if (confirmed == true) {
-      await _supabase
-          .schema('pathway')
-          .from('venues')
-          .delete()
-          .eq('venue_id', venueId);
-      _refresh();
+      try {
+        // Ensure you use your specific schema if required
+        await _supabase
+            .from('venues')
+            .delete()
+            .eq('venue_id', venueId); // venueId is int
+        _refresh();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Delete Error: $e")),
+        );
+      }
     }
   }
 
   void _handleEdit(VenueModel venue) {
-    debugPrint("Editing ${venue.name}");
+    // Navigation to edit page would go here
+    debugPrint("Editing venue ID: ${venue.id}");
   }
 
   @override
@@ -57,12 +70,18 @@ class _VenueListPageState extends State<VenueListPage> {
     final String? currentUserId = _supabase.auth.currentUser?.id;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Discovery")),
+      appBar: AppBar(
+        title: const Text("Discovery"),
+        actions: [
+          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<List<VenueModel>>(
-          // Added  typing
-          future: _repo.fetchVenues(),
+          key: _refreshKey,
+          // Updated to match the method name in your new Repository
+          future: _repo.fetchAllVenues(), 
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -74,30 +93,26 @@ class _VenueListPageState extends State<VenueListPage> {
               return const Center(child: Text("No venues found"));
             }
 
+            final venues = snapshot.data!;
+
             return ListView.builder(
-              itemCount: snapshot.data!.length,
+              padding: const EdgeInsets.only(bottom: 20),
+              itemCount: venues.length,
               itemBuilder: (context, i) {
-                final venueData = snapshot.data![i];
+                final venueData = venues[i];
+                // Ownership check (assuming created_by_user_id is a UUID String)
                 final bool isOwner = venueData.createdByUserId == currentUserId;
 
                 return VenueCard(
                   venue: venueData,
                   isOwner: isOwner,
-                  onFavoriteToggle: () => _repo.toggleSave(
-                    venueData.id,
-                    venueData.isSaved ?? false,
-                  ).then((_) => _refresh()),
+                  onFavoriteToggle: () async {
+                    // ID is an int, isSaved is a bool. Perfect.
+                    await _repo.toggleSave(venueData.id, venueData.isSaved);
+                    _refresh();
+                  },
                   onEdit: isOwner ? () => _handleEdit(venueData) : null,
                   onDelete: isOwner ? () => _handleDelete(venueData.id) : null,
-
-                return VenueCard(
-                  venue: venueData,
-                  onFavoriteToggle: () => _repo
-                      .toggleSave(venueData.id, venueData.isSaved)
-                      .then((_) => _refresh()),
-
-                  onEdit: () => _handleEdit(venueData),
-                  onDelete: () => _handleDelete(venueData.id),
                 );
               },
             );

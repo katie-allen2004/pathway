@@ -1,30 +1,30 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VenueModel {
-  final int id;
-  final String? name;
+  final int id; // Matches your BigInt/Int primary key
+  final String name;
   final String? city;
   final String? zipCode;
   final String? description;
   final String? category;
   final String? addressLine1;
-  final bool? isSaved;
+  final bool isSaved; // Non-nullable for easier UI logic
   final String? createdByUserId;
-  final String? imagePath; 
+  final String? imagePath;
 
-  final List<String> tags; 
-  final double averageRating; 
-  final int totalReviews; 
+  final List<String> tags;
+  final double averageRating;
+  final int totalReviews;
 
   VenueModel({
     required this.id,
-    this.name,
+    required this.name,
     this.city,
     this.zipCode,
     this.description,
     this.category,
     this.addressLine1,
-    this.isSaved,
+    this.isSaved = false,
     this.createdByUserId,
     this.imagePath,
     this.tags = const [],
@@ -32,6 +32,7 @@ class VenueModel {
     this.totalReviews = 0,
   });
 
+  /// Generates the full Supabase URL for the image
   String get imageUrl {
     if (imagePath == null || imagePath!.isEmpty) {
       return 'https://via.placeholder.com/400x200?text=No+Image+Available';
@@ -43,8 +44,8 @@ class VenueModel {
 
   double get rating => averageRating;
 
-  factory VenueModel.fromJson(Map<String, dynamic> json) {
-    // process Tags
+  factory VenueModel.fromJson(Map<String, dynamic> json, {bool? isSaved}) {
+    // 1. Process Tags from Join (pathway.venue_tags -> pathway.accessibility_tags)
     List<String> extractedTags = [];
     if (json['venue_tags'] != null) {
       final List rawVenueTags = json['venue_tags'] as List;
@@ -56,7 +57,7 @@ class VenueModel {
       }
     }
 
-    // process Ratings/Reviews
+    // 2. Process Ratings/Reviews from Join (pathway.venue_reviews)
     double avg = 0.0;
     int count = 0;
     if (json['venue_reviews'] != null) {
@@ -64,57 +65,27 @@ class VenueModel {
       count = reviews.length;
       if (count > 0) {
         final total = reviews.fold<double>(
-          0.0, 
-          (sum, r) => sum + (r['rating'] as num? ?? 0).toDouble()
-        );
+            0.0, (sum, r) => sum + (r['rating'] as num? ?? 0).toDouble());
         avg = total / count;
       }
     }
 
     return VenueModel(
-      //  mapping 'venue_id' from Supabase to 'id' in local model
+      // Standardizes 'venue_id' from DB to 'id' in Dart
       id: json['venue_id'] as int,
       name: json['name'],
       city: json['city'],
-      zipCode: json['zip'], 
+      zipCode: json['zip_code'] ?? json['zip'], // Handles both naming conventions
       description: json['description'],
       category: json['category'],
-      addressLine1: json['address_line_1'], 
-      isSaved: json['is_saved'] ?? false,
+      addressLine1: json['address_line_1'] ?? json['address'],
+      // Prioritize the isSaved passed from Repository, fallback to DB column, then false
+      isSaved: isSaved ?? json['is_saved'] ?? false,
       createdByUserId: json['created_by_user_id'],
-      imagePath: json['image_path'], 
+      imagePath: json['image_path'],
       tags: extractedTags,
       averageRating: avg,
       totalReviews: count,
     );
   }
 }
-class VenueModel {
-  final String id; // uuid
-  final String name;
-  final String? addressLine1;
-  final String? city;
-  final String? description;
-  final bool isSaved;
-
-  VenueModel({
-    required this.id,
-    required this.name,
-    this.addressLine1,
-    this.city,
-    this.description,
-    this.isSaved = false,
-  });
- factory VenueModel.fromJson(
-  Map<String, dynamic> json, {
-  bool isSaved = false,
-}) {
-  return VenueModel(
-    id: (json['id'] ?? '').toString(),
-    name: (json['name'] ?? 'Unnamed Venue').toString(),
-    addressLine1: (json['address'] ?? '').toString(),
-    city: '', // not in DB yet
-    description: '', // not in DB yet
-    isSaved: isSaved,
-  );
-}}

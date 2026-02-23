@@ -5,6 +5,12 @@ class VenueRepository {
   final _supa = Supabase.instance.client;
 
   Future<List<VenueModel>> fetchVenues() async {
+    final response = await _supa
+        .from('pathway.venues')
+        .select('*, pathway.saved_venues(id)');
+    return (response as List).map((json) { 
+      final isSaved = (json['saved_venues'] as List).isNotEmpty;
+      return VenueModel.fromJson(json);
     final user = _supa.auth.currentUser;
     if (user == null) return [];
 

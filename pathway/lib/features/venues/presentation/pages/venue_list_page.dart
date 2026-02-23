@@ -16,10 +16,9 @@ class _VenueListPageState extends State<VenueListPage> {
   final _supabase = Supabase.instance.client;
 
   Future<void> _refresh() async {
-    setState(() {}); // the FutureBuilder to run again
+    setState(() {});
   }
 
-  //  for Deleting
   Future<void> _handleDelete(dynamic venueId) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -55,6 +54,8 @@ class _VenueListPageState extends State<VenueListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final String? currentUserId = _supabase.auth.currentUser?.id;
+
     return Scaffold(
       appBar: AppBar(title: const Text("Discovery")),
       body: RefreshIndicator(
@@ -77,6 +78,17 @@ class _VenueListPageState extends State<VenueListPage> {
               itemCount: snapshot.data!.length,
               itemBuilder: (context, i) {
                 final venueData = snapshot.data![i];
+                final bool isOwner = venueData.createdByUserId == currentUserId;
+
+                return VenueCard(
+                  venue: venueData,
+                  isOwner: isOwner,
+                  onFavoriteToggle: () => _repo.toggleSave(
+                    venueData.id,
+                    venueData.isSaved ?? false,
+                  ).then((_) => _refresh()),
+                  onEdit: isOwner ? () => _handleEdit(venueData) : null,
+                  onDelete: isOwner ? () => _handleDelete(venueData.id) : null,
 
                 return VenueCard(
                   venue: venueData,

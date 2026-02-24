@@ -176,3 +176,84 @@ class ThemeModeSegmented extends StatelessWidget {
     );
   }
 }
+
+/// Simple reusable rows
+class SettingsSwitchRow extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const SettingsSwitchRow({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: theme.textTheme.bodyMedium),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withValues(alpha: 0.65),
+              ),
+            ),
+      value: value,
+      onChanged: onChanged,
+    );
+  }
+}
+
+class SettingsDropdownRow<T> extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  const SettingsDropdownRow({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.bodyMedium),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle!,
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurface.withValues(alpha: 0.65)),
+          ),
+        ],
+        const SizedBox(height: 8),
+        DropdownButtonFormField<T>(
+          value: value,
+          items: items,
+          onChanged: onChanged,
+          decoration: const InputDecoration(),
+        ),
+      ],
+    );
+  }
+}

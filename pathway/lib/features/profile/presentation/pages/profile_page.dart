@@ -6,6 +6,7 @@ import 'package:pathway/core/routing/app_router.dart';
 import 'edit_profile_information_page.dart';
 import 'notification_settings_page.dart';
 import 'accessibility_settings_page.dart';
+import 'security_settings_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -179,8 +180,9 @@ class _ProfilePageState extends State<ProfilePage> {
               // Security section
               TileSection(
                 tiles: [
-                  TileInstance(icon: Icons.security_rounded, title: 'Security settings', onTap: () {
-                    // TODO: Implement security settings page
+                  TileInstance(icon: Icons.security_rounded, title: 'Security settings', onTap: () async{
+                    final changes = await routePage(context, const SecuritySettingsPage());
+                    if (changes == true) _refresh();  
                   }),
                   TileInstance(icon: Icons.notifications_off_rounded, title: 'Blocked and muted accounts', onTap: () {
                     // TODO: Implement blocked/muted accounts page

@@ -7,6 +7,7 @@ import 'edit_profile_information_page.dart';
 import 'notification_settings_page.dart';
 import 'accessibility_settings_page.dart';
 import 'security_settings_page.dart';
+import 'blocked_muted_accounts_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -165,7 +166,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (changed == true) _refresh();
                           },
                     ),
-                  TileInstance(icon: Icons.notifications_rounded, title: 'Notifications', onTap: () async {
+                  TileInstance(icon: Icons.notifications_rounded, title: 'Notification settings', onTap: () async {
                             final changed = await routePage(context, const NotificationSettingsPage());
                             if (changed == true) _refresh();
                           },
@@ -184,8 +185,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     final changes = await routePage(context, const SecuritySettingsPage());
                     if (changes == true) _refresh();  
                   }),
-                  TileInstance(icon: Icons.notifications_off_rounded, title: 'Blocked and muted accounts', onTap: () {
-                    // TODO: Implement blocked/muted accounts page
+                  TileInstance(icon: Icons.notifications_off_rounded, title: 'Blocked and muted users', onTap: () async {
+                    final changed = await routePage(context, const BlockedMutedPage());
+                    if (changed == true) _refresh();
                   }),
                 ]
               ),

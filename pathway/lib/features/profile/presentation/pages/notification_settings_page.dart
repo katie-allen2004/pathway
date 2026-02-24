@@ -44,7 +44,7 @@ class _NotificationSettingsPageState
         title: Padding(
           padding: const EdgeInsets.only(top: 2.0),
           child: Text(
-            'Notification Settings',
+            'Notification settings',
             style: theme.appBarTheme.titleTextStyle,
           ),
         ),

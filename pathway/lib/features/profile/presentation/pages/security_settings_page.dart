@@ -61,7 +61,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
         centertitle: false,
         title: Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: Text('Security', style: theme.appBarTheme.titleTextStyle),
+          child: Text('Security settings', style: theme.appBarTheme.titleTextStyle),
         ),
       ),
       body: SafeArea(

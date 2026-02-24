@@ -10,7 +10,7 @@ class AccessibilitySettingsPage extends StatefulWidget {
 }
 
 class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
-  // In real app: load/save these (Supabase, SharedPreferences, etc.)
+  // TODO: Load/save these settings from Supabase
   AppThemeMode themeMode = AppThemeMode.system;
   bool highContrast = false;
   bool dyslexiaFont = false;
@@ -24,10 +24,10 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // A quick preview style (doesn't change whole app yet, just preview area)
+    // Preview style
     final previewTextTheme = theme.textTheme.apply(
       fontSizeFactor: textScale,
-      fontFamily: dyslexiaFont ? 'OpenDyslexic' : null, // see note below
+      fontFamily: dyslexiaFont ? 'OpenDyslexic' : null,
       bodyColor: highContrast ? Colors.black : null,
       displayColor: highContrast ? Colors.black : null,
     );
@@ -38,7 +38,7 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
         centertitle: false,
         title: Padding(
           padding: const EdgeInsets.only(top: 2.0),
-          child: Text('Accessibility Settings', style: theme.appBarTheme.titleTextStyle),
+          child: Text('Accessibility settings', style: theme.appBarTheme.titleTextStyle),
         ),
       ),
       body: SafeArea(

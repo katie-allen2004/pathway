@@ -7,7 +7,7 @@ import 'edit_profile_information_page.dart';
 import 'notification_settings_page.dart';
 import 'accessibility_settings_page.dart';
 import 'security_settings_page.dart';
-import 'blocked_muted_accounts_page.dart';
+import 'blocked_muted_users_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {

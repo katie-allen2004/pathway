@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '/features/venues/data/venue_model.dart';
-import '/features/venues/presentation/pages/venue_detail_page.dart';
+import '../../data/venue_model.dart';
+import '../pages/venue_detail_page.dart';
 
 class VenueCard extends StatelessWidget {
   final VenueModel venue;
   final bool isOwner;
-  final VoidCallback onFavoriteToggle;
+  final Function(VenueModel updatedVenue) onFavoriteToggle;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -20,7 +20,7 @@ class VenueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Standardize isSaved to non-nullable for the UI
+    // drives ui
     final bool isSaved = venue.isSaved;
 
     return Card(
@@ -30,7 +30,6 @@ class VenueCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: () {
-          // Navigation logic from version 2
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -44,24 +43,44 @@ class VenueCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Image Header (Version 1 Style)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: Image.network(
-                venue.imageUrl,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 160,
-                  color: Colors.deepPurple.withOpacity(0.05),
-                  child: Icon(Icons.image_outlined, 
-                    color: Colors.deepPurple.withOpacity(0.2), size: 40),
+            // images
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                  child: Image.network(
+                    venue.imageUrl, 
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 160,
+                      color: Colors.deepPurple.withOpacity(0.05),
+                      child: Icon(Icons.image_outlined, 
+                        color: Colors.deepPurple.withOpacity(0.2), size: 40),
+                    ),
+                  ),
                 ),
-              ),
+                if (isOwner)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        "MY VENUE",
+                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
             ),
 
-            // 2. Content Info
+            // content
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -75,7 +94,7 @@ class VenueCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              venue.name ?? 'Unknown Venue',
+                              venue.name,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
@@ -84,7 +103,7 @@ class VenueCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              "${venue.addressLine1 ?? ''}${venue.city != null ? ', ${venue.city}' : ''}",
+                              "${venue.city ?? 'Unknown City'}${venue.zipCode != null ? ', ${venue.zipCode}' : ''}",
                               style: TextStyle(color: Colors.grey[600], fontSize: 13),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -95,18 +114,27 @@ class VenueCard extends StatelessWidget {
                         ),
                       ),
 
-                      // 3. Action Buttons
+                      //action
                       Column(
                         children: [
+                          // favorite
                           IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                             icon: Icon(
                               isSaved ? Icons.favorite : Icons.favorite_border,
                               color: isSaved ? Colors.red : Colors.grey,
                             ),
-                            onPressed: onFavoriteToggle,
+                            onPressed: () {
+                              onFavoriteToggle(venue);
+                            },
                           ),
+                          const SizedBox(height: 8),
+                          // for owner of venue
                           if (isOwner)
                             PopupMenuButton<String>(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                               icon: const Icon(Icons.more_vert, color: Colors.grey),
                               onSelected: (value) {
                                 if (value == 'edit' && onEdit != null) onEdit!();
@@ -136,7 +164,6 @@ class VenueCard extends StatelessWidget {
                     ],
                   ),
                   
-                  // 4. Tags (Version 1 Style)
                   if (venue.tags.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Wrap(

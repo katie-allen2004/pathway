@@ -35,7 +35,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
 
       setState(() {
   _searchResults = (data as List)
-      .map((json) => UserProfile.fromJson(json)) // Much cleaner!
+      .map((json) => UserProfile.fromJson(json)) 
       .toList();
   _isQuerying = false;
 });
@@ -116,7 +116,6 @@ class _ConversationsPageState extends State<ConversationsPage> {
           ),
           subtitle: Text(user.bio, maxLines: 2, overflow: TextOverflow.ellipsis),
           onTap: () {
-            // This will link to your messaging system later
             debugPrint(
 "Start conversation with: ${user.userName} (ID: ${user.id})");
           },

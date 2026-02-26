@@ -15,7 +15,6 @@ class _VenueListPageState extends State<VenueListPage> {
   final VenueRepository _repo = VenueRepository();
   final _supabase = Supabase.instance.client;
 
-  // Key to force FutureBuilder to reload
   Key _refreshKey = UniqueKey();
 
   Future<void> _refresh() async {
@@ -24,13 +23,12 @@ class _VenueListPageState extends State<VenueListPage> {
     });
   }
 
-  /// Handles deletion using the integer venue_id
   Future<void> _handleDelete(int venueId) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Venue?"),
-        content: const Text("This action cannot be undone."),
+        content: const Text("This action cannot be undone and will remove the venue from the map."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -46,23 +44,25 @@ class _VenueListPageState extends State<VenueListPage> {
 
     if (confirmed == true) {
       try {
-        // Ensure you use your specific schema if required
         await _supabase
+            .schema('pathway')
             .from('venues')
             .delete()
-            .eq('venue_id', venueId); // venueId is int
+            .eq('venue_id', venueId);
+            
         _refresh();
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Delete Error: $e")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Delete Error: $e")),
+          );
+        }
       }
     }
   }
 
   void _handleEdit(VenueModel venue) {
-    // Navigation to edit page would go here
-    debugPrint("Editing venue ID: ${venue.id}");
+    debugPrint("Editing venue: ${venue.name}");
   }
 
   @override
@@ -70,8 +70,12 @@ class _VenueListPageState extends State<VenueListPage> {
     final String? currentUserId = _supabase.auth.currentUser?.id;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFE9ECF7), // match detail page
       appBar: AppBar(
-        title: const Text("Discovery"),
+        title: const Text("Discovery", style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
         actions: [
           IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))
         ],
@@ -80,7 +84,6 @@ class _VenueListPageState extends State<VenueListPage> {
         onRefresh: _refresh,
         child: FutureBuilder<List<VenueModel>>(
           key: _refreshKey,
-          // Updated to match the method name in your new Repository
           future: _repo.fetchAllVenues(), 
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -90,25 +93,24 @@ class _VenueListPageState extends State<VenueListPage> {
               return Center(child: Text("Error: ${snapshot.error}"));
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text("No venues found"));
+              return const Center(child: Text("No venues found in your area."));
             }
 
             final venues = snapshot.data!;
 
             return ListView.builder(
-              padding: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.only(top: 8, bottom: 20),
               itemCount: venues.length,
               itemBuilder: (context, i) {
                 final venueData = venues[i];
-                // Ownership check (assuming created_by_user_id is a UUID String)
                 final bool isOwner = venueData.createdByUserId == currentUserId;
 
                 return VenueCard(
                   venue: venueData,
                   isOwner: isOwner,
-                  onFavoriteToggle: () async {
-                    // ID is an int, isSaved is a bool. Perfect.
-                    await _repo.toggleSave(venueData.id, venueData.isSaved);
+                  onFavoriteToggle: (updatedVenue) async {
+                    // update the db background
+                    await _repo.toggleSave(updatedVenue.id, venueData.isSaved);
                     _refresh();
                   },
                   onEdit: isOwner ? () => _handleEdit(venueData) : null,

@@ -25,7 +25,6 @@ class AuthService {
       final userId = res.user?.id;
       debugPrint('SIGNUP user id: $userId');
 
-      // 1. Check if we have a user ID at all
       if (userId == null) {
         return const RegisterResult(
           success: false,
@@ -33,7 +32,6 @@ class AuthService {
         );
       }
 
-      // 2. Handle the email confirmation flow (main branch logic)
       if (res.session == null) {
         return const RegisterResult(
           success: true,
@@ -41,7 +39,6 @@ class AuthService {
         );
       }
 
-      // 3. Sync to your tables (my UUID fix)
       await Supabase.instance.client.schema('pathway').from('profiles').insert({
         'user_id': userId,
         'display_name': name,

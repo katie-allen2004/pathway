@@ -1,20 +1,21 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VenueModel {
-  final int id; // Matches your BigInt/Int primary key
+  final int id;
   final String name;
   final String? city;
   final String? zipCode;
   final String? description;
   final String? category;
   final String? addressLine1;
-  final bool isSaved; // Non-nullable for easier UI logic
+  final bool isSaved; 
   final String? createdByUserId;
   final String? imagePath;
-
   final List<String> tags;
   final double averageRating;
   final int totalReviews;
+  final double? latitude;
+  final double? longitude;
 
   VenueModel({
     required this.id,
@@ -30,24 +31,58 @@ class VenueModel {
     this.tags = const [],
     this.averageRating = 0.0,
     this.totalReviews = 0,
+    this.latitude,
+    this.longitude,
   });
 
-  /// Generates the full Supabase URL for the image
   String get imageUrl {
     if (imagePath == null || imagePath!.isEmpty) {
       return 'https://via.placeholder.com/400x200?text=No+Image+Available';
     }
+    if (imagePath!.startsWith('http')) return imagePath!;
+    
     return Supabase.instance.client.storage
         .from('avatars')
         .getPublicUrl(imagePath!);
   }
 
-  double get rating => averageRating;
+  VenueModel copyWith({
+    bool? isSaved,
+    String? name,
+    String? city,
+    String? zipCode,
+    String? description,
+    String? addressLine1,
+    String? imagePath,
+    List<String>? tags,
+    double? latitude,
+    double? longitude,
+  }) {
+    return VenueModel(
+      id: id,
+      name: name ?? this.name,
+      city: city ?? this.city,
+      zipCode: zipCode ?? this.zipCode,
+      description: description ?? this.description,
+      category: category,
+      addressLine1: addressLine1 ?? this.addressLine1,
+      isSaved: isSaved ?? this.isSaved,
+      createdByUserId: createdByUserId,
+      imagePath: imagePath ?? this.imagePath,
+      tags: tags ?? this.tags,
+      averageRating: averageRating,
+      totalReviews: totalReviews,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+    );
+  }
 
   factory VenueModel.fromJson(Map<String, dynamic> json, {bool? isSaved}) {
-    // 1. Process Tags from Join (pathway.venue_tags -> pathway.accessibility_tags)
+    // tags
     List<String> extractedTags = [];
-    if (json['venue_tags'] != null) {
+    if (json['tags'] is List) {
+      extractedTags = List<String>.from(json['tags']);
+    } else if (json['venue_tags'] != null) {
       final List rawVenueTags = json['venue_tags'] as List;
       for (var vt in rawVenueTags) {
         final tagTable = vt['accessibility_tags'] as Map<String, dynamic>?;
@@ -57,7 +92,7 @@ class VenueModel {
       }
     }
 
-    // 2. Process Ratings/Reviews from Join (pathway.venue_reviews)
+    // ratings
     double avg = 0.0;
     int count = 0;
     if (json['venue_reviews'] != null) {
@@ -70,22 +105,30 @@ class VenueModel {
       }
     }
 
+    // favorite status 
+    // user favorites
+    bool favoriteCalculated = false;
+    if (json['user_favorites'] != null) {
+      final List favs = json['user_favorites'] as List;
+      favoriteCalculated = favs.isNotEmpty;
+    }
+
     return VenueModel(
-      // Standardizes 'venue_id' from DB to 'id' in Dart
-      id: json['venue_id'] as int,
-      name: json['name'],
+      id: json['venue_id'] as int? ?? 0,
+      name: json['name'] ?? 'Unknown Venue',
       city: json['city'],
-      zipCode: json['zip_code'] ?? json['zip'], // Handles both naming conventions
+      zipCode: json['zip_code'] ?? json['zip'],
       description: json['description'],
       category: json['category'],
       addressLine1: json['address_line_1'] ?? json['address'],
-      // Prioritize the isSaved passed from Repository, fallback to DB column, then false
-      isSaved: isSaved ?? json['is_saved'] ?? false,
+      isSaved: isSaved ?? favoriteCalculated, 
       createdByUserId: json['created_by_user_id'],
       imagePath: json['image_path'],
       tags: extractedTags,
-      averageRating: avg,
-      totalReviews: count,
+      averageRating: (json['average_rating'] as num? ?? avg).toDouble(),
+      totalReviews: (json['total_reviews'] as int? ?? count),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 }

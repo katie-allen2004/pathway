@@ -14,8 +14,6 @@ class VenueDetailPage extends StatefulWidget {
 
 class _VenueDetailPageState extends State<VenueDetailPage> {
   final _repo = VenueRepository();
-  
-  // FIXED: Variable is now nullable to match the Repository return type
   late Future<VenueModel?> _venueFuture;
 
   @override
@@ -36,12 +34,15 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
   Future<void> _toggleSave(VenueModel venue) async {
     try {
-      await _repo.toggleSave(widget.venueId, venue.isSaved);
-      _refresh();
+      // Repository uses venueId (int) and current bool status
+      await _repo.toggleSave(venue.id, venue.isSaved);
+      _refresh(); 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to update favorite status")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to update favorite status")),
+        );
+      }
     }
   }
 
@@ -50,22 +51,18 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: const Color(0xFFE9ECF7),
+        backgroundColor: const Color(0xFFF8F9FE), // Slightly lighter bg
         appBar: AppBar(
-          title: const Text('Venue Details'),
+          title: const Text('Venue Details', style: TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: Colors.white,
           elevation: 0,
           foregroundColor: Colors.black,
           actions: [
-            // FIXED: FutureBuilder type is now <VenueModel?>
             FutureBuilder<VenueModel?>(
               future: _venueFuture,
               initialData: widget.initialVenue,
               builder: (context, snapshot) {
-                // Return empty if data isn't here yet or venue doesn't exist
-                if (!snapshot.hasData || snapshot.data == null) {
-                  return const SizedBox.shrink();
-                }
+                if (!snapshot.hasData || snapshot.data == null) return const SizedBox.shrink();
                 
                 final venue = snapshot.data!;
                 return IconButton(
@@ -84,7 +81,9 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
           ],
           bottom: const TabBar(
             labelColor: Colors.deepPurple,
+            unselectedLabelColor: Colors.grey,
             indicatorColor: Colors.deepPurple,
+            indicatorWeight: 3,
             tabs: [
               Tab(text: 'Overview'),
               Tab(text: 'Reviews'),
@@ -92,7 +91,6 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
             ],
           ),
         ),
-        // FIXED: FutureBuilder type is now <VenueModel?>
         body: FutureBuilder<VenueModel?>(
           future: _venueFuture,
           initialData: widget.initialVenue,
@@ -101,7 +99,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
+              return Center(child: Text('Error loading venue: ${snapshot.error}'));
             }
             if (!snapshot.hasData || snapshot.data == null) {
               return const Center(child: Text('Venue not found.'));
@@ -130,110 +128,149 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final address = [
+    // Correctly build address from the new model fields
+    final addressParts = [
       if (venue.addressLine1 != null && venue.addressLine1!.isNotEmpty) venue.addressLine1,
       if (venue.city != null && venue.city!.isNotEmpty) venue.city,
-    ].join(', ');
+    ];
+    final fullAddress = addressParts.join(', ');
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       children: [
+        // Title & Address Section
         Text(venue.name, 
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        Text(address.isNotEmpty ? address : 'Address not available'),
-        const SizedBox(height: 14),
-        
+          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+        const SizedBox(height: 6),
         Row(
           children: [
-            _Badge(text: venue.category ?? 'General'),
+            const Icon(Icons.location_on, size: 16, color: Colors.grey),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                fullAddress.isNotEmpty ? fullAddress : 'No address provided',
+                style: TextStyle(color: Colors.grey[700], fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        
+        // Quick Badges
+        Row(
+          children: [
+            _Badge(text: venue.category ?? 'Venue', color: Colors.deepPurple),
             const SizedBox(width: 10),
-            _Badge(text: 'Rating: ${venue.averageRating.toStringAsFixed(1)}', icon: Icons.star),
+            _Badge(
+              text: '${venue.averageRating.toStringAsFixed(1)} (${venue.totalReviews})', 
+              icon: Icons.star_rounded,
+              color: Colors.amber[800]!,
+            ),
           ],
         ),
 
-        const SizedBox(height: 16),
-        const Text('Accessibility Tags', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 24),
+        const Text('Accessibility Features', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
         
         venue.tags.isEmpty 
-          ? const Text("No tags listed", style: TextStyle(color: Colors.grey))
+          ? const Text("No accessibility information provided yet.", style: TextStyle(color: Colors.grey))
           : Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: venue.tags.map((tag) => Chip(
-                label: Text(tag, style: const TextStyle(fontSize: 12)),
-                backgroundColor: Colors.white,
-              )).toList(),
+              children: venue.tags.map((tag) => _FeatureChip(label: tag)).toList(),
             ),
 
-        const SizedBox(height: 18),
-        const Text('Photos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 24),
+        const Text('Venue Photos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
         
         ClipRRect(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(20),
           child: Image.network(
             venue.imageUrl,
-            height: 200,
+            height: 220,
             width: double.infinity,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const _PlaceholderCard(
-              height: 200, 
-              child: Center(child: Icon(Icons.image_not_supported, color: Colors.grey, size: 40))
+            errorBuilder: (_, __, ___) => Container(
+              height: 220,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(Icons.broken_image_outlined, color: Colors.grey, size: 48),
             ),
           ),
         ),
 
-        const SizedBox(height: 18),
-        const Text('About', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 24),
+        const Text('About this Venue', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
         _PlaceholderCard(
-          child: Text(venue.description ?? 'No description available.', 
-            style: const TextStyle(height: 1.5)),
+          child: Text(
+            venue.description ?? 'A welcoming space for everyone. Detailed description coming soon.', 
+            style: TextStyle(height: 1.6, color: Colors.grey[800], fontSize: 15),
+          ),
         ),
+        const SizedBox(height: 40),
       ],
     );
   }
 }
 
+// ... _ReviewsTab and _PostsTab remain placeholders for now ...
 class _ReviewsTab extends StatelessWidget {
   final VenueModel venue;
   const _ReviewsTab({required this.venue});
-
   @override
-  Widget build(BuildContext context) {
-    return Center(child: Text("Reviews for ${venue.name} coming soon"));
-  }
+  Widget build(BuildContext context) => const Center(child: Text("Reviews coming soon"));
 }
 
 class _PostsTab extends StatelessWidget {
   final VenueModel venue;
   const _PostsTab({required this.venue});
-
   @override
-  Widget build(BuildContext context) {
-    return Center(child: Text("Community posts for ${venue.name} coming soon"));
-  }
+  Widget build(BuildContext context) => const Center(child: Text("Posts coming soon"));
 }
 
-/* -------------------- Shared UI -------------------- */
+/* -------------------- Custom UI Components -------------------- */
 
-class _PlaceholderCard extends StatelessWidget {
-  final Widget child;
-  final double? height;
-  const _PlaceholderCard({required this.child, this.height});
+class _FeatureChip extends StatelessWidget {
+  final String label;
+  const _FeatureChip({required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: height,
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.deepPurple.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(color: Colors.deepPurple.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 13, color: Colors.deepPurple, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _PlaceholderCard extends StatelessWidget {
+  final Widget child;
+  const _PlaceholderCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
       ),
       child: child,
     );
@@ -243,22 +280,23 @@ class _PlaceholderCard extends StatelessWidget {
 class _Badge extends StatelessWidget {
   final String text;
   final IconData? icon;
-  const _Badge({required this.text, this.icon});
+  final Color color;
+  const _Badge({required this.text, this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) Icon(icon, size: 14, color: Colors.amber),
+          if (icon != null) Icon(icon, size: 16, color: color),
           if (icon != null) const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          Text(text, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
         ],
       ),
     );

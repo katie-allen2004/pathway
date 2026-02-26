@@ -17,11 +17,10 @@ class _MapScreenState extends State<MapScreen> {
   final _repo = VenueRepository();
   final StorageService _storageService = StorageService();
 
-  // --- Data State ---
   List<VenueModel> _allVenues = [];
   List<VenueModel> _filteredVenues = [];
   List<Map<String, dynamic>> _allAvailableTags = [];
-  
+
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
 
@@ -38,17 +37,14 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
-  /// Targets the 'pathway' schema for all initial data
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Fetch tags from the pathway schema
       final tagData = await _supabase
           .schema('pathway')
           .from('accessibility_tags')
           .select();
 
-      // 2. Fetch Venues (Ensure VenueRepository also uses .schema('pathway'))
       final venues = await _repo.fetchAllVenues();
 
       setState(() {
@@ -91,12 +87,38 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  /// favorite toggle logic 
   Future<void> _handleFavoriteToggle(VenueModel venue) async {
+    final originalVenue = venue;
+    final bool originalStatus = venue.isSaved;
+
+    // ui updated
+    setState(() {
+      final index = _allVenues.indexWhere((v) => v.id == venue.id);
+      if (index != -1) {
+        _allVenues[index] = venue.copyWith(isSaved: !originalStatus);
+      }
+      _runFilter();
+    });
+
     try {
-      await _repo.toggleSave(venue.id, venue.isSaved);
-      await _refreshVenues();
+      // database call 
+      await _repo.toggleSave(venue.id, originalStatus);
     } catch (e) {
       debugPrint('Favorite Toggle Error: $e');
+      setState(() {
+        final index = _allVenues.indexWhere((v) => v.id == venue.id);
+        if (index != -1) {
+          _allVenues[index] = originalVenue;
+        }
+        _runFilter();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not update favorite. Check connection.")),
+        );
+      }
     }
   }
 
@@ -105,36 +127,52 @@ class _MapScreenState extends State<MapScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Venue?"),
+        content: const Text("This will permanently remove this venue."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
           TextButton(
-            onPressed: () => Navigator.pop(context, true), 
-            child: const Text("Delete", style: TextStyle(color: Colors.red))
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      await _supabase
-          .schema('pathway')
-          .from('venues')
-          .delete()
-          .eq('venue_id', venueId);
-      _refreshVenues();
+      try {
+        await _supabase.schema('pathway').from('venues').delete().eq('venue_id', venueId);
+        await _refreshVenues();
+      } catch (e) {
+        debugPrint("Delete Error: $e");
+      }
     }
   }
 
-  // --- Add Venue Dialog ---
+  Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
+    final isEditing = existingVenue != null;
 
-  Future<void> _showAddVenueDialog() async {
-    final nameController = TextEditingController();
-    final cityController = TextEditingController();
-    final zipController = TextEditingController();
-    final descController = TextEditingController();
-    List<int> selectedTagIds = []; 
-    String? uploadedImageName; 
+    final nameController = TextEditingController(text: existingVenue?.name);
+    final cityController = TextEditingController(text: existingVenue?.city);
+    final zipController = TextEditingController(text: existingVenue?.zipCode);
+    final descController = TextEditingController(text: existingVenue?.description);
+    final latController = TextEditingController(text: existingVenue?.latitude?.toString());
+    final lngController = TextEditingController(text: existingVenue?.longitude?.toString());
+    
+    List<int> selectedTagIds = [];
+    String? uploadedImageName = existingVenue?.imagePath;
     bool isUploading = false;
+    bool isLoadingTags = isEditing;
+
+    if (isEditing) {
+      _repo.getVenueTagIds(existingVenue.id).then((ids) {
+        if (mounted) {
+          setState(() {
+            selectedTagIds = ids;
+            isLoadingTags = false;
+          });
+        }
+      });
+    }
 
     showDialog(
       context: context,
@@ -143,7 +181,7 @@ class _MapScreenState extends State<MapScreen> {
           final bool canSave = !isUploading && nameController.text.trim().isNotEmpty;
 
           return AlertDialog(
-            title: const Text("Add New Venue"),
+            title: Text(isEditing ? "Edit Venue" : "Add New Venue"),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -164,55 +202,52 @@ class _MapScreenState extends State<MapScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.deepPurple.withOpacity(0.1)),
                       ),
-                      child: isUploading 
-                        ? const Center(child: CircularProgressIndicator())
-                        : (uploadedImageName == null 
-                            ? const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [Icon(Icons.add_a_photo, color: Colors.deepPurple), Text("Add Photo", style: TextStyle(fontSize: 12))],
-                              )
-                            : const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [Icon(Icons.check_circle, color: Colors.green), Text("Photo Uploaded", style: TextStyle(fontSize: 12))],
-                              )),
+                      child: isUploading
+                          ? const Center(child: CircularProgressIndicator())
+                          : (uploadedImageName == null
+                              ? const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [Icon(Icons.add_a_photo, color: Colors.deepPurple), Text("Add Photo", style: TextStyle(fontSize: 12))],
+                                )
+                              : const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [Icon(Icons.check_circle, color: Colors.green), Text("Photo Uploaded", style: TextStyle(fontSize: 12))],
+                                )),
                     ),
                   ),
-                  TextField(
-                    controller: nameController, 
-                    decoration: const InputDecoration(labelText: "Venue Name"),
-                    onChanged: (val) => setDialogState(() {}),
-                  ),
+                  TextField(controller: nameController, decoration: const InputDecoration(labelText: "Venue Name")),
                   TextField(controller: cityController, decoration: const InputDecoration(labelText: "City")),
                   TextField(controller: zipController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Zip Code")),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: latController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: "Lat"))),
+                      const SizedBox(width: 10),
+                      Expanded(child: TextField(controller: lngController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: "Lng"))),
+                    ],
+                  ),
                   TextField(controller: descController, maxLines: 2, decoration: const InputDecoration(labelText: "Description")),
                   const SizedBox(height: 15),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text("Accessibility Features:", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
+                  const Align(alignment: Alignment.centerLeft, child: Text("Accessibility Features:", style: TextStyle(fontWeight: FontWeight.bold))),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: _allAvailableTags.map((tag) {
-                      final id = tag['tag_id'] as int;
-                      final isSelected = selectedTagIds.contains(id);
-                      return FilterChip(
-                        label: Text(tag['tag_name'], style: const TextStyle(fontSize: 11)),
-                        selected: isSelected,
-                        selectedColor: Colors.deepPurple.withOpacity(0.2),
-                        checkmarkColor: Colors.deepPurple,
-                        onSelected: (bool selected) {
-                          setDialogState(() {
-                            if (selected) {
-                              selectedTagIds.add(id);
-                            } else {
-                              selectedTagIds.remove(id);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
+                  isLoadingTags 
+                    ? const Center(child: CircularProgressIndicator())
+                    : Wrap(
+                        spacing: 8,
+                        children: _allAvailableTags.map((tag) {
+                          final id = tag['tag_id'] as int;
+                          final isSelected = selectedTagIds.contains(id);
+                          return FilterChip(
+                            label: Text(tag['tag_name'], style: const TextStyle(fontSize: 11)),
+                            selected: isSelected,
+                            onSelected: (bool selected) {
+                              setDialogState(() {
+                                if (selected) selectedTagIds.add(id);
+                                else selectedTagIds.remove(id);
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
                 ],
               ),
             ),
@@ -221,41 +256,59 @@ class _MapScreenState extends State<MapScreen> {
               ElevatedButton(
                 onPressed: !canSave ? null : () async {
                   try {
-                    // Save to pathway.venues
-                    final newVenue = await _supabase
-                        .schema('pathway')
-                        .from('venues')
-                        .insert({
-                          'name': nameController.text.trim(),
-                          'city': cityController.text.trim(),
-                          'zip': zipController.text.trim(), 
-                          'description': descController.text.trim(),
-                          'image_path': uploadedImageName, 
-                          'created_by_user_id': _supabase.auth.currentUser?.id,
-                        })
-                        .select()
-                        .single();
+                    final lat = double.tryParse(latController.text.trim());
+                    final lng = double.tryParse(lngController.text.trim());
 
-                    // Save to pathway.venue_tags
-                    if (selectedTagIds.isNotEmpty) {
-                      final tagInserts = selectedTagIds.map((tId) => {
-                        'venue_id': newVenue['venue_id'], 
-                        'tag_id': tId
-                      }).toList();
-                      
-                      await _supabase
+                    if (lat == null || lng == null) {
+                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter valid coordinates.")));
+                       return;
+                    }
+
+                    final data = {
+                      'name': nameController.text.trim(),
+                      'city': cityController.text.trim(),
+                      'zip': zipController.text.trim(),
+                      'description': descController.text.trim(),
+                      'image_path': uploadedImageName,
+                      'latitude': lat,
+                      'longitude': lng,
+                    };
+
+                    if (isEditing) {
+                      await _repo.updateVenue(venueId: existingVenue.id, venueData: data, tagIds: selectedTagIds);
+                    } else {
+                      // duplicate check 
+                      final exists = await _repo.venueExists(lat: lat, lng: lng);
+                      if (exists) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("A venue already exists here.")));
+                        }
+                        return;
+                      }
+
+                      final newVenueResponse = await _supabase
                           .schema('pathway')
-                          .from('venue_tags')
-                          .insert(tagInserts);
+                          .from('venues')
+                          .insert({...data, 'created_by_user_id': _supabase.auth.currentUser?.id})
+                          .select()
+                          .single();
+
+                      if (selectedTagIds.isNotEmpty) {
+                        final tagInserts = selectedTagIds.map((tId) => {
+                          'venue_id': newVenueResponse['venue_id'],
+                          'tag_id': tId
+                        }).toList();
+                        await _supabase.schema('pathway').from('venue_tags').insert(tagInserts);
+                      }
                     }
 
                     if (context.mounted) Navigator.pop(context);
                     await _refreshVenues();
                   } catch (e) {
-                    debugPrint("Error saving venue: $e");
+                    debugPrint("Error saving: $e");
                   }
                 },
-                child: const Text("Save"),
+                child: Text(isEditing ? "Update" : "Save"),
               ),
             ],
           );
@@ -281,21 +334,8 @@ class _MapScreenState extends State<MapScreen> {
               ),
               child: Column(
                 children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 8), 
-                    width: 40, height: 4, 
-                    decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10))
-                  ),
+                  Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10))),
                   const Text("Discovery", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      _searchController.text.isEmpty
-                          ? "Showing all venues"
-                          : "Found ${_filteredVenues.length} results for '${_searchController.text}'",
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ),
                   Expanded(
                     child: _filteredVenues.isEmpty
                         ? const Center(child: Text("No matches found."))
@@ -304,15 +344,19 @@ class _MapScreenState extends State<MapScreen> {
                             itemCount: _filteredVenues.length,
                             itemBuilder: (context, i) {
                               final v = _filteredVenues[i];
-                              final bool isOwner = v.createdByUserId == currentUserId;
                               return VenueCard(
                                 venue: v,
-                                isOwner: isOwner,
-                                onFavoriteToggle: () async {
+                                isOwner: v.createdByUserId == currentUserId,
+                                onFavoriteToggle: (updatedVenue) async {
+                                  // toggle handler 
                                   await _handleFavoriteToggle(v);
                                   setModalState(() {});
                                 },
-                                onDelete: isOwner ? () async {
+                                onEdit: v.createdByUserId == currentUserId ? () {
+                                  Navigator.pop(context);
+                                  _showAddVenueDialog(existingVenue: v);
+                                } : null,
+                                onDelete: v.createdByUserId == currentUserId ? () async {
                                   await _handleDelete(v.id);
                                   setModalState(() {});
                                 } : null,
@@ -334,13 +378,14 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.deepPurple,
-        onPressed: _showAddVenueDialog,
+        onPressed: () => _showAddVenueDialog(),
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
+                // set up for map in the future 
                 Container(color: Colors.grey[200], child: const Center(child: Text('Map coming soon'))),
                 SafeArea(
                   child: Padding(
@@ -350,18 +395,10 @@ class _MapScreenState extends State<MapScreen> {
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.white, 
-                              borderRadius: BorderRadius.circular(30), 
-                              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]
-                            ),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
                             child: TextField(
                               controller: _searchController,
-                              decoration: const InputDecoration(
-                                hintText: "Search venue...", 
-                                border: InputBorder.none, 
-                                icon: Icon(Icons.search, color: Colors.deepPurple)
-                              ),
+                              decoration: const InputDecoration(hintText: "Search venue...", border: InputBorder.none, icon: Icon(Icons.search, color: Colors.deepPurple)),
                             ),
                           ),
                         ),

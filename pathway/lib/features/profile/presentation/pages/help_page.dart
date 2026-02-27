@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:pathway/core/routing/app_router.dart';
+import 'privacy_policy_page.dart';
 
 
 class HelpPage extends StatefulWidget {
@@ -155,7 +157,7 @@ class _HelpPageState extends State<HelpPage> {
                       title: const Text('Privacy policy'),
                       subtitle: const Text('View privacy policy'),
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open privacy policy (TODO)')));
+                        routePage(context, const PrivacyPolicyPage());
                       },
                     ),
                   ],

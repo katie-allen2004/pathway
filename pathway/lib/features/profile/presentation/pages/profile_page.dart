@@ -8,6 +8,8 @@ import 'notification_settings_page.dart';
 import 'accessibility_settings_page.dart';
 import 'security_settings_page.dart';
 import 'blocked_muted_users_page.dart';
+import 'contact_us_page.dart';
+import 'help_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -195,11 +197,13 @@ class _ProfilePageState extends State<ProfilePage> {
               // Help section
               TileSection(
                 tiles: [
-                  TileInstance(icon: Icons.help_center_rounded, title: 'Help', onTap: () {
-                    // TODO: Implement help page
+                  TileInstance(icon: Icons.help_center_rounded, title: 'Help', onTap: () async {
+                    final changed = await routePage(context, const HelpPage());
+                    if (changed == true) _refresh();
                   }),
-                  TileInstance(icon: Icons.contact_page_rounded, title: 'Contact us', onTap: () {
-                    // TODO: Implement contact us page
+                  TileInstance(icon: Icons.contact_page_rounded, title: 'Contact us', onTap: () async {
+                    final changed = await routePage(context, const ContactUsPage());
+                    if (changed == true) _refresh();
                   }),
                   TileInstance(icon: Icons.lock_outline_rounded, title: 'Privacy Policy', onTap: () {
                     // TODO: Implement privacy policy page

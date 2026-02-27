@@ -39,12 +39,12 @@ class AuthService {
         );
       }
 
-      await Supabase.instance.client.schema('pathway').from('profiles').insert({
+      await Supabase.instance.client.from('profiles').insert({
         'user_id': userId,
         'display_name': name,
       });
 
-      await Supabase.instance.client.schema('pathway').from('users').insert({
+      await Supabase.instance.client.from('users').insert({
         'external_id': userId,
         'email': email,
       });

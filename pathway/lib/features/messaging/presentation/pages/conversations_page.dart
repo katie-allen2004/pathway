@@ -28,7 +28,6 @@ class _ConversationsPageState extends State<ConversationsPage> {
     try {
     
       final data = await _supabase
-          .schema('pathway')
           .from('profiles') 
           .select()
           .or('display_name.ilike.%$query%,bio.ilike.%$query%');

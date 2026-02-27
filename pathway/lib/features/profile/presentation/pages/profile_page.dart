@@ -10,6 +10,7 @@ import 'security_settings_page.dart';
 import 'blocked_muted_users_page.dart';
 import 'contact_us_page.dart';
 import 'help_page.dart';
+import 'privacy_policy_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -35,6 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (authUser == null) throw Exception('Not signed in');
 
     final profileRow = await supabase
+        .schema('pathway')
         .from('profiles')
         .select('display_name, avatar_url')
         .eq('user_id', authUser.id) // profiles.user_id is uuid
@@ -204,8 +206,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     final changed = await routePage(context, const ContactUsPage());
                     if (changed == true) _refresh();
                   }),
-                  TileInstance(icon: Icons.lock_outline_rounded, title: 'Privacy Policy', onTap: () {
-                    // TODO: Implement privacy policy page
+                  TileInstance(icon: Icons.lock_outline_rounded, title: 'Privacy Policy', onTap: () async {
+                    final changed = await routePage(context, const PrivacyPolicyPage());
+                    if (changed == true) _refresh();
                   }),
                 ]
               ),

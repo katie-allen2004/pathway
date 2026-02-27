@@ -25,6 +25,7 @@ class ProfileRepository {
     }
 
     final row = await supabase
+        .schema('pathway')
         .from('users')
         .select('user_id')
         .eq('external_id', authUser.id)
@@ -70,7 +71,7 @@ class ProfileRepository {
     if (displayName != null) update['display_name'] = displayName;
     if (avatarUrl != null) update['avatar_url'] = avatarUrl;
 
-    await supabase.from('profiles').upsert({
+    await supabase.schema('pathway').from('profiles').upsert({
       'user_id': authUuid,
       ...update,
     }, onConflict: 'user_id');
@@ -82,6 +83,7 @@ class ProfileRepository {
     required List<String> tagNames,
   }) async {
     await supabase
+        .schema('pathway')
         .from('user_accessibility_tags')
         .delete()
         .eq('user_id', userId);
@@ -89,6 +91,7 @@ class ProfileRepository {
     if (tagNames.isEmpty) return;
 
     final tagRows = await supabase
+        .schema('pathway')
         .from('accessibility_tags')
         .select('tag_id, tag_name')
         .inFilter('tag_name', tagNames);
@@ -158,6 +161,7 @@ class ProfileRepository {
     final authUuid = await _getAuthUUID();
 
     final profileRow = await supabase
+        .schema('pathway')
         .from('profiles')
         .select('display_name')
         .eq('user_id', authUuid)
@@ -171,6 +175,7 @@ class ProfileRepository {
     final authUuid = await _getAuthUUID();
 
     final profileRow = await supabase
+        .schema('pathway')
         .from('profiles')
         .select('avatar_url')
         .eq('user_id', authUuid)
@@ -184,6 +189,7 @@ class ProfileRepository {
     final userId = await _getInternalUserId();
 
     final rows = await supabase
+        .schema('pathway')
         .from('user_accessibility_tags')
         .select('accessibility_tags(tag_name)')
         .eq('user_id', userId);

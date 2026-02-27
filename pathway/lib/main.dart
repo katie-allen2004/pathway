@@ -5,18 +5,26 @@ import 'core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 ThemeData buildPathwayTheme() {
-  final base = ThemeData(useMaterial3: true);
-
   final colorScheme = ColorScheme.fromSeed(
     seedColor: AppColors.primary,
     brightness: Brightness.light,
+  );
+
+  final base = ThemeData(
+    colorScheme: colorScheme,
+    useMaterial3: true
   );
 
   return base.copyWith(
     colorScheme: colorScheme,
     scaffoldBackgroundColor: AppColors.background,
 
-    textTheme: GoogleFonts.robotoTextTheme(base.textTheme).copyWith(
+    textTheme: GoogleFonts.robotoTextTheme(base.textTheme)
+      .apply(
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
+      )
+      .copyWith(
       bodyMedium: const TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,

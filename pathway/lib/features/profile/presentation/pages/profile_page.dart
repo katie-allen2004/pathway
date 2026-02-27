@@ -33,7 +33,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (authUser == null) throw Exception('Not signed in');
 
     final profileRow = await supabase
-        .schema('pathway')
         .from('profiles')
         .select('display_name, avatar_url')
         .eq('user_id', authUser.id) // profiles.user_id is uuid

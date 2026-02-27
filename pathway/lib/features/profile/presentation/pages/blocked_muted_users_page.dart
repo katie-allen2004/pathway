@@ -25,7 +25,6 @@ class _BlockedMutedPageState extends State<BlockedMutedPage> {
 
   Future<List<_RelationshipRow>> _fetch({required String type}) async {
     final data = await supabase
-        .schema('pathway')
         .from('v_relationships_with_profiles')
         .select('id, type, created_at, target_auth_id, display_name, avatar_url')
         .eq('type', type)
@@ -49,7 +48,6 @@ class _BlockedMutedPageState extends State<BlockedMutedPage> {
   Future<void> _removeRelationship(_RelationshipRow row) async {
     try {
       await supabase
-          .schema('pathway')
           .from('user_relationships')
           .delete()
           .eq('id', row.id);

@@ -1,14 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VenueModel {
-  final int id;
+  final int id; // pathway.venues uses venue_id (int)
   final String name;
   final String? city;
   final String? zipCode;
   final String? description;
   final String? category;
   final String? addressLine1;
-  final bool isSaved; 
+  final bool isSaved;
   final String? createdByUserId;
   final String? imagePath;
   final List<String> tags;
@@ -40,10 +40,7 @@ class VenueModel {
       return 'https://via.placeholder.com/400x200?text=No+Image+Available';
     }
     if (imagePath!.startsWith('http')) return imagePath!;
-    
-    return Supabase.instance.client.storage
-        .from('avatars')
-        .getPublicUrl(imagePath!);
+    return Supabase.instance.client.storage.from('avatars').getPublicUrl(imagePath!);
   }
 
   VenueModel copyWith({
@@ -100,13 +97,14 @@ class VenueModel {
       count = reviews.length;
       if (count > 0) {
         final total = reviews.fold<double>(
-            0.0, (sum, r) => sum + (r['rating'] as num? ?? 0).toDouble());
+          0.0,
+          (sum, r) => sum + (r['rating'] as num? ?? 0).toDouble(),
+        );
         avg = total / count;
       }
     }
 
-    // favorite status 
-    // user favorites
+    // favorite status (pathway.user_favorites join)
     bool favoriteCalculated = false;
     if (json['user_favorites'] != null) {
       final List favs = json['user_favorites'] as List;
@@ -114,15 +112,15 @@ class VenueModel {
     }
 
     return VenueModel(
-      id: json['venue_id'] as int? ?? 0,
+      id: (json['venue_id'] as num?)?.toInt() ?? 0,
       name: json['name'] ?? 'Unknown Venue',
       city: json['city'],
       zipCode: json['zip_code'] ?? json['zip'],
       description: json['description'],
       category: json['category'],
       addressLine1: json['address_line_1'] ?? json['address'],
-      isSaved: isSaved ?? favoriteCalculated, 
-      createdByUserId: json['created_by_user_id'],
+      isSaved: isSaved ?? favoriteCalculated,
+      createdByUserId: json['created_by_user_id'] ?? json['created_by'],
       imagePath: json['image_path'],
       tags: extractedTags,
       averageRating: (json['average_rating'] as num? ?? avg).toDouble(),

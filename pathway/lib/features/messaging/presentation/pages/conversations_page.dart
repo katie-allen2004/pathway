@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../models/user_profile.dart';
+//profile page
+import 'package:pathway/features/profile/presentation/pages/other_user_profile.dart';
 
 class ConversationsPage extends StatefulWidget {
   const ConversationsPage({super.key});
@@ -26,18 +28,19 @@ class _ConversationsPageState extends State<ConversationsPage> {
     setState(() => _isQuerying = true);
 
     try {
-    
+      // pathway scheme
       final data = await _supabase
+          .schema('pathway') 
           .from('profiles') 
           .select()
           .or('display_name.ilike.%$query%,bio.ilike.%$query%');
 
       setState(() {
-  _searchResults = (data as List)
-      .map((json) => UserProfile.fromJson(json)) 
-      .toList();
-  _isQuerying = false;
-});
+        _searchResults = (data as List)
+            .map((json) => UserProfile.fromJson(json)) 
+            .toList();
+        _isQuerying = false;
+      });
     } catch (e) {
       debugPrint('Search Error: $e');
       setState(() => _isQuerying = false);
@@ -115,8 +118,16 @@ class _ConversationsPageState extends State<ConversationsPage> {
           ),
           subtitle: Text(user.bio, maxLines: 2, overflow: TextOverflow.ellipsis),
           onTap: () {
-            debugPrint(
-"Start conversation with: ${user.userName} (ID: ${user.id})");
+            // updated
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtherUserProfilePage(
+                  userId: user.id,
+                  displayName: user.userName,
+                ),
+              ),
+            );
           },
         );
       },
@@ -130,7 +141,6 @@ class _ConversationsPageState extends State<ConversationsPage> {
         children: [
           Icon(Icons.forum_outlined, size: 60, color: Colors.grey),
           SizedBox(height: 16),
-          // Links to your conversations table
           Text("No active conversations", style: TextStyle(color: Colors.grey, fontSize: 16)),
           Text("Search for a user to start chatting", style: TextStyle(color: Colors.grey, fontSize: 14)),
         ],

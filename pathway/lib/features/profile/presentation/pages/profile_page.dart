@@ -161,7 +161,7 @@ class _ProfilePageState extends State<ProfilePage> {
           onRefresh: _refresh,
           child: CustomScrollView(
             slivers: [
-              // Profile section
+              // profile
               TileSection(
                 tiles: [
                   TileInstance(icon: Icons.person, title: 'Edit profile information', onTap: () async {
@@ -181,7 +181,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ]
               ),
 
-              // Security section
+              // security
               TileSection(
                 tiles: [
                   TileInstance(icon: Icons.security_rounded, title: 'Security settings', onTap: () async{
@@ -195,7 +195,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ]
               ),
 
-              // Help section
+              // this the help section 
               TileSection(
                 tiles: [
                   TileInstance(icon: Icons.help_center_rounded, title: 'Help', onTap: () async {
@@ -212,7 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   }),
                 ]
               ),
-              // Sign out section
+              // sign out 
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16),

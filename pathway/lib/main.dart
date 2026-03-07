@@ -6,9 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:provider/provider.dart';
 import '/features/auth/data/user_repository.dart'; 
-import '/features/profile/data/profile_repository.dart';
-
-
 
 ThemeData buildPathwayTheme() {
   final colorScheme = ColorScheme.fromSeed(

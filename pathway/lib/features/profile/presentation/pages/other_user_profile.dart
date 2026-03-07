@@ -7,10 +7,13 @@ class OtherUserProfilePage extends StatelessWidget {
   final String userId;
   final String displayName;
 
+  final VoidCallback? onMessage;
+
   const OtherUserProfilePage({
     super.key,
     required this.userId,
     required this.displayName,
+    this.onMessage,
   });
 
   @override
@@ -34,6 +37,26 @@ class OtherUserProfilePage extends StatelessWidget {
             
             _IdentitySection(displayName: displayName),
             const SizedBox(height: 24),
+
+            if (!isViewingOwnProfile) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: onMessage, // ✅ calls back into ConversationsPage
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                    label: const Text("Message"),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
             
             _buildInfoCard(
               icon: Icons.info_outline,

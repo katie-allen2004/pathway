@@ -219,33 +219,52 @@ class _ConversationsPageState extends State<ConversationsPage> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             leading: CircleAvatar(
               radius: 22,
-              backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty) ? NetworkImage(user.avatarUrl!) : null, // display avatar if defined
+              backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                  ? NetworkImage(user.avatarUrl!)
+                  : null,
               backgroundColor: Colors.deepPurple.shade50,
-              child: (user.avatarUrl == null || user.avatarUrl!.isEmpty) ? Text(
-                user.userName.isNotEmpty ? user.userName[0] : '?',
-                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
-              ) : null, // otherwise, fill with a pale purple and the first initial of the display name
+              child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                  ? Text(
+                      user.userName.isNotEmpty ? user.userName[0] : '?',
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
-            title: Text(user.userName, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-            onTap: () => _openConversation(startWith: user), // when user is selected, open a conversation with that user
-          ),
-          title: Text(
-            user.userName,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(user.bio, maxLines: 2, overflow: TextOverflow.ellipsis),
-          onTap: () {
-            // updated
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OtherUserProfilePage(
-                  userId: user.id,
-                  displayName: user.userName,
+            title: Text(
+              user.userName,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            subtitle: (user.bio != null && user.bio!.isNotEmpty)  // Include user's bio if exists
+                ? Text(user.bio!, maxLines: 1, overflow: TextOverflow.ellipsis)
+                : null,
+
+            // Add a message button to quickly start a chat with a searched user
+            trailing: IconButton(
+              tooltip: 'Message',
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              onPressed: () => _openConversation(startWith: user),
+            ),
+
+            // Allow user to select row and view other user's profile
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OtherUserProfilePage( // Build other user's profile page
+                    userId: user.id,
+                    displayName: user.userName,
+                    onMessage: () => _openConversation(startWith: user),
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

@@ -4,6 +4,9 @@ import 'package:google_fonts/google_fonts.dart'; // Added Google Fonts package f
 import 'core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:provider/provider.dart';
+import '/features/auth/data/user_repository.dart'; 
+
 ThemeData buildPathwayTheme() {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: AppColors.primary,
@@ -113,13 +116,17 @@ ThemeData buildPathwayTheme() {
 
 class PathwayApp extends StatelessWidget {
   const PathwayApp({super.key});
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Pathway',
-      theme: buildPathwayTheme(),
-      home: const LoginScreen(),
+    return MultiProvider(
+      providers: [
+        Provider<UserRepository>(create: (_) => UserRepository()),
+      ],
+      child: MaterialApp(
+        title: 'Pathway',
+        theme: buildPathwayTheme(),
+        home: const LoginScreen(),
+      ),
     );
   }
 }

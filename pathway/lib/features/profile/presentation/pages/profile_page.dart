@@ -12,6 +12,7 @@ import 'contact_us_page.dart';
 import 'help_page.dart';
 import 'privacy_policy_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
+import 'favorites_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -161,58 +162,126 @@ class _ProfilePageState extends State<ProfilePage> {
           onRefresh: _refresh,
           child: CustomScrollView(
             slivers: [
-              // Profile section
+              // profile
               TileSection(
                 tiles: [
-                  TileInstance(icon: Icons.person, title: 'Edit profile information', onTap: () async {
-                            final changed = await routePage(context, const EditProfilePage());
-                            if (changed == true) _refresh();
-                          },
-                    ),
-                  TileInstance(icon: Icons.notifications_rounded, title: 'Notification settings', onTap: () async {
-                            final changed = await routePage(context, const NotificationSettingsPage());
-                            if (changed == true) _refresh();
-                          },
-                    ),
-                  TileInstance(icon: Icons.settings_accessibility_rounded, title: 'Accessibility settings', onTap: () async {
-                            final changes = await routePage(context, const AccessibilitySettingsPage());
-                            if (changes == true) _refresh();
-                  }),
-                ]
+                  TileInstance(
+                    icon: Icons.person,
+                    title: 'Edit profile information',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const EditProfilePage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                  TileInstance(
+                    icon: Icons.notifications_rounded,
+                    title: 'Notification settings',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const NotificationSettingsPage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                  TileInstance(
+                    icon: Icons.settings_accessibility_rounded,
+                    title: 'Accessibility settings',
+                    onTap: () async {
+                      final changes = await routePage(
+                        context,
+                        const AccessibilitySettingsPage(),
+                      );
+                      if (changes == true) _refresh();
+                    },
+                  ),
+                ],
+              ),
+              TileSection(
+                tiles: [
+                  TileInstance(
+                    icon: Icons.favorite,
+                    title: 'Favorites',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const FavoritesPage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                ],
+              ),
+              // security
+              TileSection(
+                tiles: [
+                  TileInstance(
+                    icon: Icons.security_rounded,
+                    title: 'Security settings',
+                    onTap: () async {
+                      final changes = await routePage(
+                        context,
+                        const SecuritySettingsPage(),
+                      );
+                      if (changes == true) _refresh();
+                    },
+                  ),
+                  TileInstance(
+                    icon: Icons.notifications_off_rounded,
+                    title: 'Blocked and muted users',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const BlockedMutedPage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                ],
               ),
 
-              // Security section
+              // this the help section
               TileSection(
                 tiles: [
-                  TileInstance(icon: Icons.security_rounded, title: 'Security settings', onTap: () async{
-                    final changes = await routePage(context, const SecuritySettingsPage());
-                    if (changes == true) _refresh();  
-                  }),
-                  TileInstance(icon: Icons.notifications_off_rounded, title: 'Blocked and muted users', onTap: () async {
-                    final changed = await routePage(context, const BlockedMutedPage());
-                    if (changed == true) _refresh();
-                  }),
-                ]
+                  TileInstance(
+                    icon: Icons.help_center_rounded,
+                    title: 'Help',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const HelpPage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                  TileInstance(
+                    icon: Icons.contact_page_rounded,
+                    title: 'Contact us',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const ContactUsPage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                  TileInstance(
+                    icon: Icons.lock_outline_rounded,
+                    title: 'Privacy Policy',
+                    onTap: () async {
+                      final changed = await routePage(
+                        context,
+                        const PrivacyPolicyPage(),
+                      );
+                      if (changed == true) _refresh();
+                    },
+                  ),
+                ],
               ),
-
-              // Help section
-              TileSection(
-                tiles: [
-                  TileInstance(icon: Icons.help_center_rounded, title: 'Help', onTap: () async {
-                    final changed = await routePage(context, const HelpPage());
-                    if (changed == true) _refresh();
-                  }),
-                  TileInstance(icon: Icons.contact_page_rounded, title: 'Contact us', onTap: () async {
-                    final changed = await routePage(context, const ContactUsPage());
-                    if (changed == true) _refresh();
-                  }),
-                  TileInstance(icon: Icons.lock_outline_rounded, title: 'Privacy Policy', onTap: () async {
-                    final changed = await routePage(context, const PrivacyPolicyPage());
-                    if (changed == true) _refresh();
-                  }),
-                ]
-              ),
-              // Sign out section
+              // sign out
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16),

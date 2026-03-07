@@ -6,9 +6,6 @@ class ProfileRepository {
   ProfileRepository({SupabaseClient? client})
     : supabase = client ?? Supabase.instance.client;
 
-  //////////// API methods for updating profile data ///////////
-
-  // Method: Return auth UUID string
   Future<String> _getAuthUUID() async {
     final authUser = supabase.auth.currentUser;
     if (authUser == null) {
@@ -16,8 +13,6 @@ class ProfileRepository {
     }
     return authUser.id;
   }
-
-  // Method: Map auth UUID -> user_id
   Future<int> _getInternalUserId() async {
     final authUser = supabase.auth.currentUser;
     if (authUser == null) {
@@ -34,7 +29,7 @@ class ProfileRepository {
     return (row['user_id'] as num).toInt();
   }
 
-  // Method: Update avatar (optional) and return URL
+  //avatar
   Future<String?> _updateAvatar(XFile? photo) async {
     if (photo == null) return null;
 
@@ -59,7 +54,7 @@ class ProfileRepository {
     return supabase.storage.from('avatars').getPublicUrl(path);
   }
 
-  // Method: Update display_name + avatar_url in profiles
+  // display
   Future<void> _updateProfileRow({
     required String authUuid,
     required String? displayName,
@@ -77,7 +72,7 @@ class ProfileRepository {
     }, onConflict: 'user_id');
   }
 
-  // Method: Replace user's accessibility tags
+  // accessilbilty tags
   Future<void> _replaceAccessibilityTags({
     required int userId,
     required List<String> tagNames,
@@ -129,7 +124,7 @@ class ProfileRepository {
     await supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
-  // Method: Public method to update profile
+  // public
   Future<void> updateProfile({
     required String displayName,
     XFile? photo,
@@ -155,8 +150,7 @@ class ProfileRepository {
     );
   }
 
-  /////////// Getter methods for profile data ///////////
-  // Method: Retrieves user's display name
+// profile 
   Future<String?> getDisplayName() async {
     final authUuid = await _getAuthUUID();
 
@@ -170,7 +164,7 @@ class ProfileRepository {
     return profileRow?['display_name'] as String?;
   }
 
-  // Method: Retrieve user's profile picture URL
+  // picture url 
   Future<String?> getProfilePictureUrl() async {
     final authUuid = await _getAuthUUID();
 
@@ -184,7 +178,7 @@ class ProfileRepository {
     return profileRow?['avatar_url'] as String?;
   }
 
-  // Method: Retrieve user's accessibility tags
+  //accessibility tags
   Future<List<String>?> getUserAccessibilityTags() async {
     final userId = await _getInternalUserId();
 

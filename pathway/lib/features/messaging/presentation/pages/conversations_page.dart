@@ -5,6 +5,8 @@ import '../../../../models/user_profile.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 
+//profile page
+import 'package:pathway/features/profile/presentation/pages/other_user_profile.dart';
 
 class ConversationsPage extends StatefulWidget {
   const ConversationsPage({super.key});
@@ -227,6 +229,23 @@ class _ConversationsPageState extends State<ConversationsPage> {
             title: Text(user.userName, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
             onTap: () => _openConversation(startWith: user), // when user is selected, open a conversation with that user
           ),
+          title: Text(
+            user.userName,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(user.bio, maxLines: 2, overflow: TextOverflow.ellipsis),
+          onTap: () {
+            // updated
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtherUserProfilePage(
+                  userId: user.id,
+                  displayName: user.userName,
+                ),
+              ),
+            );
+          },
         );
       },
     );

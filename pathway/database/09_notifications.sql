@@ -1,20 +1,136 @@
--- notifications.
+--notifications.
 
-CREATE TABLE IF NOT EXISTS pathway.notifications (
-  notification_id BIGSERIAL PRIMARY KEY,
+-- turn on RLS though SQL just to be sure its on
+alter table pathway.notifications enable row level security;
 
-  recipient_user_id BIGINT NOT NULL REFERENCES pathway.users(user_id) ON DELETE CASCADE,
-  actor_user_id BIGINT REFERENCES pathway.users(user_id) ON DELETE SET NULL,
-
-  -- example types: 'dm', 'new_review', 'venue_update'
-  type TEXT NOT NULL,
-
-  -- optional links to the thing the notification is about
-  venue_id BIGINT REFERENCES pathway.venues(venue_id) ON DELETE CASCADE,
-  review_id BIGINT REFERENCES pathway.venue_reviews(review_id) ON DELETE CASCADE,
-  conversation_id BIGINT REFERENCES pathway.conversations(conversation_id) ON DELETE CASCADE,
-  message_id BIGINT REFERENCES pathway.messages(message_id) ON DELETE CASCADE,
-
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  read_at TIMESTAMPTZ
+-- user can only see notifications that belong to them
+drop policy if exists "notifications read own" on pathway.notifications;
+create policy "notifications read own"
+on pathway.notifications
+for select
+using (
+  recipient_user_id = (
+    -- find the current user's pathway.users row by matching auth.uid()
+    select u.user_id
+    from pathway.users u
+    where u.external_id = auth.uid()::text
+  )
 );
+
+-- user can only update their own notifications
+drop policy if exists "notifications update own" on pathway.notifications;
+create policy "notifications update own"
+on pathway.notifications
+for update
+using (
+  recipient_user_id = (
+    select u.user_id
+    from pathway.users u
+    where u.external_id = auth.uid()::text
+  )
+)
+with check (
+  recipient_user_id = (
+    select u.user_id
+    from pathway.users u
+    where u.external_id = auth.uid()::text
+  )
+);
+
+-- user can delete only their own notifications
+drop policy if exists "notifications delete own" on pathway.notifications;
+create policy "notifications delete own"
+on pathway.notifications
+for delete
+using (
+  recipient_user_id = (
+    select u.user_id
+    from pathway.users u
+    where u.external_id = auth.uid()::text
+  )
+);
+
+-- create notifications from the app
+create or replace function pathway.create_notification(
+  p_recipient_user_id bigint,
+  p_type text,
+  p_actor_user_id bigint default null,
+  p_venue_id bigint default null,
+  p_review_id bigint default null,
+  p_conversation_id bigint default null,
+  p_message_id bigint default null
+)
+returns bigint
+language plpgsql
+security definer
+as $$
+declare
+  new_id bigint;
+begin
+  -- insert one notification row
+  insert into pathway.notifications (
+    recipient_user_id,
+    actor_user_id,
+    type,
+    venue_id,
+    review_id,
+    conversation_id,
+    message_id
+  )
+  values (
+    p_recipient_user_id,
+    p_actor_user_id,
+    p_type,
+    p_venue_id,
+    p_review_id,
+    p_conversation_id,
+    p_message_id
+  )
+  returning notification_id into new_id;
+
+  -- return the new notification id to the caller
+  return new_id;
+end;
+$$;
+
+-- allow users to call this function
+grant execute on function pathway.create_notification(
+  bigint, text, bigint, bigint, bigint, bigint, bigint
+) to authenticated;
+
+-- notify everyone in chat when a new message is sent (excluding the sender)
+create or replace function pathway.notify_on_new_message()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  -- notifications for all conversation members except the sender
+  insert into pathway.notifications (
+    recipient_user_id,
+    actor_user_id,
+    type,
+    conversation_id,
+    message_id
+  )
+  select
+    cm.user_id as recipient_user_id,
+    new.sender_user_id as actor_user_id,
+    'dm' as type,
+    new.conversation_id,
+    new.message_id
+  from pathway.conversation_members cm
+  where cm.conversation_id = new.conversation_id
+    and cm.user_id <> new.sender_user_id;
+
+  return new;
+end;
+$$;
+
+-- drop then create trigger to avoid duplicates if this file is run multiple times
+drop trigger if exists trg_notify_on_new_message on pathway.messages;
+
+create trigger trg_notify_on_new_message
+after insert on pathway.messages
+for each row
+execute function pathway.notify_on_new_message();

@@ -24,3 +24,33 @@ CREATE TABLE IF NOT EXISTS pathway.messages (
   body TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- add an expiry time so messages auto delete
+alter table pathway.messages
+add column if not exists expires_at timestamptz;
+
+-- set expiry for any old rows that don't have it yet
+update pathway.messages
+set expires_at = created_at + interval '7 days'
+where expires_at is null;
+
+-- auto set expires_at for new messages
+create or replace function pathway.set_message_expiry()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.expires_at is null then
+    new.expires_at := new.created_at + interval '7 days';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_set_message_expiry on pathway.messages;
+
+create trigger trg_set_message_expiry
+before insert on pathway.messages
+for each row
+execute function pathway.set_message_expiry();

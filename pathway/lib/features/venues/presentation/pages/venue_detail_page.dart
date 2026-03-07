@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../data/venue_model.dart';
 import '../../data/venue_repository.dart';
 import '../../data/review_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 class VenueDetailPage extends StatefulWidget {
   final int venueId;
@@ -250,6 +253,12 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasCoords = venue.latitude != null && venue.longitude != null;
+    final hasAddress =
+        (venue.addressLine1 ?? '').trim().isNotEmpty ||
+        (venue.city ?? '').trim().isNotEmpty ||
+        (venue.zipCode ?? '').trim().isNotEmpty;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
@@ -261,14 +270,42 @@ class _OverviewTab extends StatelessWidget {
                 ? _Badge(text: 'NEW • NO REVIEWS', color: Colors.grey[700]!)
                 : _Badge(
                     text:
-                        '${venue.averageRating.toStringAsFixed(1)} (${venue.totalReviews})',
+                        '${venue.averageRating.toStringAsFixed(1)} ★ • ${venue.totalReviews} review${venue.totalReviews == 1 ? '' : 's'}',
                     icon: Icons.star_rounded,
                     color: Colors.amber[800]!,
                   ),
           ],
         ),
         const SizedBox(height: 16),
+        _AccessibilityScoreCard(venue: venue),
 
+        const SizedBox(height: 14),
+
+        _Card(
+          title: 'Photos',
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Image.network(
+                venue.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey[200],
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Image unavailable',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        _AccessibilityScoreCard(venue: venue),
+
+        const SizedBox(height: 14),
         _Card(
           title: 'Accessibility Features',
           child: venue.tags.isEmpty
@@ -276,12 +313,22 @@ class _OverviewTab extends StatelessWidget {
                   "No accessibility information provided yet.",
                   style: TextStyle(color: Colors.grey),
                 )
-              : Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: venue.tags
-                      .map((tag) => _FeatureChip(label: tag))
-                      .toList(),
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: venue.tags
+                          .map((tag) => _FeatureChip(label: tag))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "Based on community reports and reviews.",
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                  ],
                 ),
         ),
 
@@ -323,15 +370,159 @@ class _OverviewTab extends StatelessWidget {
               _InfoRow(
                 icon: Icons.my_location,
                 label: 'Coordinates',
-                value: (venue.latitude != null && venue.longitude != null)
+                value: hasCoords
                     ? '${venue.latitude}, ${venue.longitude}'
                     : '—',
+              ),
+              const SizedBox(height: 12),
+
+              GestureDetector(
+                onTap: (hasCoords || hasAddress)
+                    ? () => _openMapsForVenue(context, venue)
+                    : null,
+                onLongPress: (hasCoords || hasAddress)
+                    ? () => _copyVenueLocation(context, venue)
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on, color: Colors.deepPurple),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _formattedAddress(venue),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.open_in_new,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: (hasCoords || hasAddress)
+                        ? () => _openMapsForVenue(context, venue)
+                        : null,
+                    icon: const Icon(Icons.map_outlined, size: 18),
+                    label: const Text('Open in Maps'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: (hasCoords || hasAddress)
+                        ? () => _copyVenueLocation(context, venue)
+                        : null,
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('Copy'),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ],
     );
+  }
+
+  static Future<void> _openMapsForVenue(
+    BuildContext context,
+    VenueModel v,
+  ) async {
+    final hasCoords = v.latitude != null && v.longitude != null;
+
+    final query = hasCoords
+        ? '${v.latitude},${v.longitude}'
+        : [
+            if (v.addressLine1 != null && v.addressLine1!.trim().isNotEmpty)
+              v.addressLine1!.trim(),
+            if (v.city != null && v.city!.trim().isNotEmpty) v.city!.trim(),
+            if (v.zipCode != null && v.zipCode!.trim().isNotEmpty)
+              v.zipCode!.trim(),
+          ].join(', ');
+
+    if (query.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No location data available.')),
+      );
+      return;
+    }
+
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}',
+    );
+
+    final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open Maps.')));
+    }
+  }
+
+  static String _formattedAddress(VenueModel v) {
+    final parts = <String>[
+      if (v.addressLine1 != null && v.addressLine1!.trim().isNotEmpty)
+        v.addressLine1!.trim(),
+      if (v.city != null && v.city!.trim().isNotEmpty) v.city!.trim(),
+      if (v.zipCode != null && v.zipCode!.trim().isNotEmpty) v.zipCode!.trim(),
+    ];
+
+    if (parts.isNotEmpty) return parts.join(', ');
+
+    // fallback to coords if no address
+    if (v.latitude != null && v.longitude != null) {
+      return '${v.latitude}, ${v.longitude}';
+    }
+
+    return '—';
+  }
+
+  static Future<void> _copyVenueLocation(
+    BuildContext context,
+    VenueModel v,
+  ) async {
+    final text = [
+      if (v.addressLine1 != null && v.addressLine1!.trim().isNotEmpty)
+        v.addressLine1!.trim(),
+      if (v.city != null && v.city!.trim().isNotEmpty) v.city!.trim(),
+      if (v.zipCode != null && v.zipCode!.trim().isNotEmpty) v.zipCode!.trim(),
+      if (v.latitude != null && v.longitude != null)
+        '(${v.latitude}, ${v.longitude})',
+    ].join(' • ');
+
+    if (text.trim().isEmpty) return;
+
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Location copied.')));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Copy failed on this platform.')),
+        );
+      }
+    }
   }
 }
 
@@ -349,15 +540,67 @@ class _ReviewsTabState extends State<_ReviewsTab> {
   final _repo = VenueRepository();
   late Future<List<ReviewModel>> _reviewsFuture;
 
+  String _sortMode = 'newest';
+
   @override
   void initState() {
     super.initState();
-    _reviewsFuture = _repo.fetchVenueReviews(widget.venue.id);
+    _reviewsFuture = _repo.fetchVenueReviews(
+      widget.venue.id,
+      sortMode: _sortMode,
+    );
+  }
+
+  Future<bool> _confirmDeleteReview() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete review?'),
+        content: const Text('This can’t be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  Future<bool> _confirmDelete() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete review?'),
+        content: const Text('This can’t be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _reviewsFuture = _repo.fetchVenueReviews(widget.venue.id);
+      _reviewsFuture = _repo.fetchVenueReviews(
+        widget.venue.id,
+        sortMode: _sortMode,
+      );
     });
   }
 
@@ -404,29 +647,90 @@ class _ReviewsTabState extends State<_ReviewsTab> {
         }
 
         final reviews = snapshot.data ?? [];
+        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Text(
-                    "Reviews",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    'Reviews',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                   ),
                   const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: _openAddReview,
-                    icon: const Icon(Icons.rate_review, size: 18),
-                    label: const Text("Write"),
+
+                  // Styled sort dropdown
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _sortMode,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'newest',
+                            child: Text('Newest'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'oldest',
+                            child: Text('Oldest'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'highest',
+                            child: Text('Highest'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'lowest',
+                            child: Text('Lowest'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() {
+                            _sortMode = v;
+                            _reviewsFuture = _repo.fetchVenueReviews(
+                              widget.venue.id,
+                              sortMode: _sortMode,
+                            );
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  SizedBox(
+                    height: 40,
+                    child: ElevatedButton.icon(
+                      onPressed: _openAddReview,
+                      icon: const Icon(Icons.edit, size: 18),
+                      label: const Text('Write'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 14),
-
+              const SizedBox(height: 20),
               if (reviews.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 60),
@@ -439,7 +743,54 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                   ),
                 )
               else
-                ...reviews.map((r) => _ReviewCard(review: r)),
+                ...reviews.map(
+                  (r) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ReviewCard(
+                      review: r,
+                      canManage:
+                          currentUserId != null && r.userId == currentUserId,
+                      onDelete: () async {
+                        final ok = await _confirmDeleteReview();
+                        if (!ok) return;
+                        await _repo.deleteReview(r.id);
+                        await _refresh();
+                      },
+
+                      onEdit: () async {
+                        final result = await showDialog<_ReviewDraft>(
+                          context: context,
+                          builder: (_) => _EditReviewDialog(
+                            initialRating: r.rating,
+                            initialText: r.text,
+                          ),
+                        );
+
+                        if (result == null) return;
+
+                        try {
+                          await _repo.updateReview(
+                            reviewId: r.id,
+                            rating: result.rating,
+                            text: result.text,
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Review updated.")),
+                            );
+                          }
+                          await _refresh();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Edit failed: $e")),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -450,13 +801,26 @@ class _ReviewsTabState extends State<_ReviewsTab> {
 
 class _ReviewCard extends StatelessWidget {
   final ReviewModel review;
-  const _ReviewCard({required this.review});
+  final bool canManage;
+
+  // Use VoidCallback so IconButton.onPressed is happy.
+  final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
+
+  const _ReviewCard({
+    required this.review,
+    required this.canManage,
+    this.onDelete,
+    this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
     final dateText = review.createdAt == null
         ? ""
         : "${review.createdAt!.month}/${review.createdAt!.day}/${review.createdAt!.year}";
+
+    final body = (review.text ?? "").trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -471,6 +835,7 @@ class _ReviewCard extends StatelessWidget {
             offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: Colors.black12.withOpacity(0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,12 +845,38 @@ class _ReviewCard extends StatelessWidget {
               _Stars(rating: review.rating),
               const Spacer(),
               if (dateText.isNotEmpty)
-                Text(dateText, style: const TextStyle(color: Colors.grey)),
+                Text(
+                  dateText,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              if (canManage) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Edit',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: onEdit,
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                  ),
+                  onPressed: onDelete,
+                ),
+              ],
             ],
           ),
-          if ((review.text ?? '').trim().isNotEmpty) ...[
+
+          if (body.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(review.text!.trim(), style: const TextStyle(height: 1.4)),
+            Text(body, style: const TextStyle(height: 1.4, fontSize: 14.5)),
           ],
         ],
       ),
@@ -631,6 +1022,194 @@ class _FeatureChip extends StatelessWidget {
   }
 }
 
+class _AccessibilityScoreCard extends StatelessWidget {
+  final VenueModel venue;
+  const _AccessibilityScoreCard({required this.venue});
+
+  @override
+  Widget build(BuildContext context) {
+    final score = _computeAccessibilityScore(venue);
+    final label = _scoreLabel(score);
+    final caption = _scoreCaption(score, venue.totalReviews);
+
+    return _Card(
+      title: 'Accessibility Score',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _ScorePill(score: score),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Tooltip(
+                message:
+                    'Score is estimated from accessibility tags and review rating.\n'
+                    'More community data improves confidence.',
+                child: Icon(
+                  Icons.info_outline,
+                  size: 18,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: score / 100.0,
+              minHeight: 10,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(_scoreColor(score)),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            caption,
+            style: TextStyle(color: Colors.grey[700], height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScorePill extends StatelessWidget {
+  final int score;
+  const _ScorePill({required this.score});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _scoreColor(score);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.accessible_forward, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(
+            '$score/100',
+            style: TextStyle(fontWeight: FontWeight.w800, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Heuristic scoring:
+/// - Starts at 50
+/// - Adds points for known positive tags
+/// - Uses averageRating as a gentle multiplier
+/// - Applies a small confidence penalty if very few reviews
+int _computeAccessibilityScore(VenueModel v) {
+  int score = 50;
+
+  final tags = v.tags.map((e) => e.toLowerCase().trim()).toList();
+
+  // Positive feature tags (adjust as your tag set evolves)
+  const positiveWeights = <String, int>{
+    'wheelchair accessible': 18,
+    'wheelchair': 14,
+    'ramp': 10,
+    'elevator': 10,
+    'accessible restroom': 14,
+    'restroom': 8,
+    'braille': 8,
+    'asl': 8,
+    'sign language': 8,
+    'hearing loop': 8,
+    'wide door': 6,
+    'automatic door': 6,
+    'step-free': 12,
+    'no steps': 12,
+    'accessible parking': 10,
+    'parking': 4,
+    'seating available': 4,
+    'quiet': 3,
+    'low sensory': 6,
+  };
+
+  // Negative tags (if you have them)
+  const negativeWeights = <String, int>{
+    'not wheelchair accessible': -18,
+    'stairs only': -16,
+    'no elevator': -12,
+    'narrow': -6,
+    'no ramp': -10,
+    'inaccessible restroom': -14,
+  };
+
+  for (final t in tags) {
+    positiveWeights.forEach((key, w) {
+      if (t.contains(key)) score += w;
+    });
+    negativeWeights.forEach((key, w) {
+      if (t.contains(key)) score += w;
+    });
+  }
+
+  // Use rating as a gentle influence (centers at ~3.5)
+  // Clamp rating to 0..5 just in case.
+  final r = v.averageRating.clamp(0.0, 5.0);
+  // Example: 0★ -> -8, 3.5★ -> ~0, 5★ -> +6
+  score += ((r - 3.5) * 4).round();
+
+  // Confidence: fewer reviews = slightly less confident -> small penalty
+  if (v.totalReviews == 0) score -= 10;
+  if (v.totalReviews == 1) score -= 6;
+  if (v.totalReviews == 2) score -= 3;
+
+  // Clamp to 0..100
+  if (score < 0) score = 0;
+  if (score > 100) score = 100;
+  return score;
+}
+
+String _scoreLabel(int score) {
+  if (score >= 85) return 'Excellent accessibility';
+  if (score >= 70) return 'Good accessibility';
+  if (score >= 55) return 'Mixed accessibility';
+  if (score >= 40) return 'Limited accessibility';
+  return 'Low accessibility';
+}
+
+String _scoreCaption(int score, int reviewCount) {
+  final base = reviewCount == 0
+      ? 'No reviews yet — score is an estimate based on tags.'
+      : 'Based on tags and $reviewCount review${reviewCount == 1 ? '' : 's'}.';
+  if (score >= 70) return '$base Looks promising for many users.';
+  if (score >= 55)
+    return '$base Some users may have difficulties — check details.';
+  return '$base May be challenging — verify before visiting.';
+}
+
+Color _scoreColor(int score) {
+  if (score >= 85) return Colors.green.shade700;
+  if (score >= 70) return Colors.teal.shade700;
+  if (score >= 55) return Colors.amber.shade800;
+  if (score >= 40) return Colors.orange.shade800;
+  return Colors.red.shade700;
+}
+
 class _Badge extends StatelessWidget {
   final String text;
   final IconData? icon;
@@ -676,6 +1255,88 @@ class _AddReviewDialog extends StatefulWidget {
 
   @override
   State<_AddReviewDialog> createState() => _AddReviewDialogState();
+}
+
+class _EditReviewDialog extends StatefulWidget {
+  final int initialRating;
+  final String? initialText;
+
+  const _EditReviewDialog({
+    required this.initialRating,
+    required this.initialText,
+  });
+
+  @override
+  State<_EditReviewDialog> createState() => _EditReviewDialogState();
+}
+
+class _EditReviewDialogState extends State<_EditReviewDialog> {
+  late int _rating;
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _rating = widget.initialRating;
+    _controller = TextEditingController(text: widget.initialText ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSubmit = _rating >= 1 && _rating <= 5;
+
+    return AlertDialog(
+      title: const Text("Edit review"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Text("Rating: "),
+              const SizedBox(width: 8),
+              DropdownButton<int>(
+                value: _rating,
+                items: [1, 2, 3, 4, 5]
+                    .map((v) => DropdownMenuItem(value: v, child: Text("$v")))
+                    .toList(),
+                onChanged: (v) => setState(() => _rating = v ?? _rating),
+              ),
+            ],
+          ),
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: "Update your review (optional)",
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: !canSubmit
+              ? null
+              : () {
+                  Navigator.pop(
+                    context,
+                    _ReviewDraft(rating: _rating, text: _controller.text),
+                  );
+                },
+          child: const Text("Save"),
+        ),
+      ],
+    );
+  }
 }
 
 class _AddReviewDialogState extends State<_AddReviewDialog> {
@@ -737,5 +1398,63 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
         ),
       ],
     );
+  }
+
+  Future<void> openMapsForVenue(VenueModel v) async {
+    final hasCoords = v.latitude != null && v.longitude != null;
+
+    // Prefer coords if available; otherwise use address text.
+    final query = hasCoords
+        ? '${v.latitude},${v.longitude}'
+        : [
+            if (v.addressLine1 != null && v.addressLine1!.trim().isNotEmpty)
+              v.addressLine1!.trim(),
+            if (v.city != null && v.city!.trim().isNotEmpty) v.city!.trim(),
+            if (v.zipCode != null && v.zipCode!.trim().isNotEmpty)
+              v.zipCode!.trim(),
+          ].join(', ');
+
+    if (query.trim().isEmpty) return;
+
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}',
+    );
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      // Fallback: try in-app webview/tab
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    }
+  }
+
+  Future<void> copyVenueLocation(BuildContext context, VenueModel v) async {
+    final text = [
+      if (v.addressLine1 != null && v.addressLine1!.trim().isNotEmpty)
+        v.addressLine1!.trim(),
+      if (v.city != null && v.city!.trim().isNotEmpty) v.city!.trim(),
+      if (v.zipCode != null && v.zipCode!.trim().isNotEmpty) v.zipCode!.trim(),
+      if (v.latitude != null && v.longitude != null)
+        '(${v.latitude}, ${v.longitude})',
+    ].join(' • ');
+
+    if (text.trim().isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Location copied.')));
+    }
+  }
+
+  static String _formattedAddress(VenueModel v) {
+    final parts = <String>[
+      if ((v.addressLine1 ?? '').trim().isNotEmpty) v.addressLine1!.trim(),
+      if ((v.city ?? '').trim().isNotEmpty) v.city!.trim(),
+      if ((v.zipCode ?? '').trim().isNotEmpty) v.zipCode!.trim(),
+    ];
+
+    if (parts.isEmpty) return '—';
+    return parts.join(', ');
   }
 }

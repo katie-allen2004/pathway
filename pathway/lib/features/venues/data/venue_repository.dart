@@ -10,7 +10,7 @@ class VenueRepository {
   Future<List<VenueModel>> fetchAllVenues() async {
     try {
       // current user id is used only to calculate saved status client-side (joined rows exist)
-      final userId = _client.auth.currentUser?.id;
+      //COMMENTED OUT FOR NOW DUE TO WARNINGS: final userId = _client.auth.currentUser?.id;
 
       final query = _client.schema('pathway').from('venues').select('''
             *,
@@ -38,7 +38,7 @@ class VenueRepository {
   /// fetch a single venue by integer venue_id
   Future<VenueModel?> fetchVenueById(int venueId) async {
     try {
-      final userId = _client.auth.currentUser?.id;
+      // COMMENTED OUT FOR NOW DUE TO WARNINGS: final userId = _client.auth.currentUser?.id;
 
       final response = await _client
           .schema('pathway')
@@ -224,16 +224,73 @@ class VenueRepository {
   // Reviews
   // ---------------------------
 
-  Future<List<ReviewModel>> fetchVenueReviews(int venueId) async {
-    final res = await _client
+  Future<List<ReviewModel>> fetchVenueReviews(
+    int venueId, {
+    String sortMode = 'newest',
+  }) async {
+    dynamic query = _client
         .schema('pathway')
         .from('venue_reviews')
         .select()
-        .eq('venue_id', venueId)
-        .order('created_at', ascending: false);
+        .eq('venue_id', venueId);
+
+    switch (sortMode) {
+      case 'oldest':
+        query = query
+            .order('created_at', ascending: true)
+            .order('review_id', ascending: true);
+        break;
+
+      case 'highest':
+        query = query
+            .order('rating', ascending: false)
+            .order('created_at', ascending: false);
+        break;
+
+      case 'lowest':
+        query = query
+            .order('rating', ascending: true)
+            .order('created_at', ascending: false);
+        break;
+
+      default:
+        query = query
+            .order('created_at', ascending: false)
+            .order('review_id', ascending: false);
+    }
+
+    final res = await query;
 
     final list = (res as List).cast<Map<String, dynamic>>();
     return list.map(ReviewModel.fromMap).toList();
+  }
+
+  Future<List<VenueModel>> fetchFavoritedVenues() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) throw Exception("Not logged in");
+
+      final res = await _client
+          .schema('pathway')
+          .from('venues')
+          .select('''
+          *,
+          venue_tags(
+            tag_id,
+            accessibility_tags(tag_name)
+          ),
+          venue_reviews(rating),
+          user_favorites!inner(user_id)
+        ''')
+          .eq('user_favorites.user_id', userId);
+
+      return (res as List)
+          .map((json) => VenueModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint("Error in fetchFavoritedVenues: $e");
+      return [];
+    }
   }
 
   Future<void> addVenueReview({
@@ -252,5 +309,25 @@ class VenueRepository {
       'rating': rating,
       'review_text': (text ?? '').trim(),
     });
+  }
+
+  Future<void> deleteReview(int reviewId) async {
+    await _client
+        .schema('pathway')
+        .from('venue_reviews')
+        .delete()
+        .eq('review_id', reviewId);
+  }
+
+  Future<void> updateReview({
+    required int reviewId,
+    required int rating,
+    String? text,
+  }) async {
+    await _client
+        .schema('pathway')
+        .from('venue_reviews')
+        .update({'rating': rating, 'review_text': (text ?? '').trim()})
+        .eq('review_id', reviewId);
   }
 }

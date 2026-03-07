@@ -303,3 +303,7 @@ create trigger trg_notify_venue_subscribers_on_new_review
 after insert on pathway.venue_reviews
 for each row
 execute function pathway.notify_venue_subscribers_on_new_review();
+
+-- enable realtime notifications in supabase
+alter table pathway.notifications replica identity full;
+alter publication supabase_realtime add table pathway.notifications;

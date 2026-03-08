@@ -802,26 +802,27 @@ class _ReviewsTabState extends State<_ReviewsTab> {
 class _ReviewCard extends StatelessWidget {
   final ReviewModel review;
   final bool canManage;
-
-  // Use VoidCallback so IconButton.onPressed is happy.
-  final VoidCallback? onDelete;
-  final VoidCallback? onEdit;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _ReviewCard({
+    super.key,
     required this.review,
     required this.canManage,
-    this.onDelete,
-    this.onEdit,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    // model to variables 
     final dateText = review.createdAt == null
         ? ""
         : "${review.createdAt!.month}/${review.createdAt!.day}/${review.createdAt!.year}";
 
     final body = (review.text ?? "").trim();
 
+    // container
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -842,17 +843,32 @@ class _ReviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _Stars(rating: review.rating),
+              _Stars(rating: review.rating), //model map
               const Spacer(),
+              
+              // action icons
+              if (!canManage) 
+                IconButton(
+                  tooltip: 'Report Review',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.flag_outlined, size: 20, color: Colors.grey),
+                  onPressed: () => _showReportDialog(context, review),
+                ),
+
               if (dateText.isNotEmpty)
-                Text(
-                  dateText,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    dateText,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
+
+              // Action icons for owners (Edit/Delete)
               if (canManage) ...[
                 const SizedBox(width: 8),
                 IconButton(
@@ -873,12 +889,30 @@ class _ReviewCard extends StatelessWidget {
               ],
             ],
           ),
-
           if (body.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(body, style: const TextStyle(height: 1.4, fontSize: 14.5)),
+            Text(
+              body, 
+              style: const TextStyle(
+                height: 1.4, 
+                fontSize: 14.5,
+                color: Colors.black87,
+              ),
+            ),
           ],
         ],
+      ),
+    );
+  }
+
+  // report logic 
+  void _showReportDialog(BuildContext context, ReviewModel review) {
+    showDialog(
+      context: context,
+      builder: (context) => ReportDialog(
+        targetType: 'venue_reviews',
+        targetId: review.id, // model 
+        reportedUserId: review.userId, // user id 
       ),
     );
   }
@@ -1456,5 +1490,121 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
 
     if (parts.isEmpty) return '—';
     return parts.join(', ');
+  }
+}
+
+class ReportDialog extends StatefulWidget {
+  final String targetType;
+  final dynamic targetId;
+  final String reportedUserId;
+
+  const ReportDialog({
+    super.key,
+    required this.targetType,
+    required this.targetId,
+    required this.reportedUserId,
+  });
+
+  @override
+  State<ReportDialog> createState() => _ReportDialogState();
+}
+
+class _ReportDialogState extends State<ReportDialog> {
+  final _repo = VenueRepository();
+  final _detailsController = TextEditingController();
+  String _selectedReason = 'Inappropriate Content';
+  bool _isSubmitting = false;
+
+  final List<String> _reasons = [
+    'Inappropriate Content',
+    'Spam',
+    'Harassment',
+    'False Information',
+    'Other',
+  ];
+
+  Future<void> _submitReport() async {
+    setState(() => _isSubmitting = true);
+    try {
+      await _repo.reportContent(
+        targetType: widget.targetType,
+        targetId: widget.targetId,
+        reportedUserId: widget.reportedUserId,
+        reason: _selectedReason,
+        description: _detailsController.text,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Report submitted. Thank you.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to submit report: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Report Content"),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Why are you reporting this?",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 10),
+            DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedReason,
+              items: _reasons
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                  .toList(),
+              onChanged: _isSubmitting 
+                  ? null 
+                  : (val) => setState(() => _selectedReason = val!),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _detailsController,
+              enabled: !_isSubmitting,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: "Additional details (optional)",
+                hintStyle: TextStyle(fontSize: 14),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submitReport,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text("Submit Report"),
+        ),
+      ],
+    );
   }
 }

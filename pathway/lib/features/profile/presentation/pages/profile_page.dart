@@ -3,6 +3,8 @@ import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pathway/core/routing/app_router.dart';
+// import admin view
+import 'package:pathway/features/admin/presentation/mod_dashboard.dart'; 
 import 'edit_profile_information_page.dart';
 import 'notification_settings_page.dart';
 import 'accessibility_settings_page.dart';
@@ -25,11 +27,25 @@ class _ProfilePageState extends State<ProfilePage> {
   final supabase = Supabase.instance.client;
 
   late Future<_ProfileHeaderData> _headerFuture;
+  
+  // admin status
+  bool _isAdmin = false; 
 
   @override
   void initState() {
     super.initState();
     _headerFuture = _fetchHeader();
+    // admin check 
+    _checkAdminStatus(); 
+  }
+
+  // update portion to check if a user is admin 
+  void _checkAdminStatus() {
+    final user = supabase.auth.currentUser;
+    setState(() {
+      _isAdmin = user?.userMetadata?['role'] == 'admin' || 
+                 user?.email == 'admin@pathway.com'; 
+    });
   }
 
   Future<_ProfileHeaderData> _fetchHeader() async {
@@ -61,6 +77,8 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _refresh() async {
     setState(() {
       _headerFuture = _fetchHeader();
+      // UPDATED CODE: Refresh admin status
+      _checkAdminStatus(); 
     });
     await _headerFuture;
   }
@@ -240,6 +258,13 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (changed == true) _refresh();
                     },
                   ),
+                  // updated for admin view 
+                  if (_isAdmin) 
+                    TileInstance(
+                      icon: Icons.admin_panel_settings_rounded,
+                      title: 'Moderator Dashboard',
+                      onTap: () => routePage(context, const ModeratorDashboard()),
+                    ),
                 ],
               ),
 

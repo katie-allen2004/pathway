@@ -18,9 +18,9 @@ class VenueRepository {
               tag_id,
               accessibility_tags(tag_name)
             ),
-            venue_reviews(rating),
+            venue_reviews(review_id, user_id, rating, review_text, is_visible, created_at),
             user_favorites!left(user_id)
-          ''');
+          ''').eq('venue_reviews.is_visible', true); // Filter hidden reviews
 
       // Do NOT filter by user_favorites.user_id here — that'll hide venues that are not favorited.
       final response = await query;
@@ -49,10 +49,11 @@ class VenueRepository {
               tag_id,
               accessibility_tags(tag_name)
             ),
-            venue_reviews(rating),
+            venue_reviews(review_id, user_id, rating, review_text, is_visible, created_at),
             user_favorites!left(user_id)
           ''')
           .eq('venue_id', venueId)
+          .eq('venue_reviews.is_visible', true) // Filter hidden reviews
           // Do NOT filter by user_favorites.user_id here either; the left join will include zero or one favorites rows.
           .maybeSingle();
 
@@ -232,7 +233,8 @@ class VenueRepository {
         .schema('pathway')
         .from('venue_reviews')
         .select()
-        .eq('venue_id', venueId);
+        .eq('venue_id', venueId)
+        .eq('is_visible', true); // Added visibility filter
 
     switch (sortMode) {
       case 'oldest':
@@ -308,6 +310,7 @@ class VenueRepository {
       'user_id': user.id,
       'rating': rating,
       'review_text': (text ?? '').trim(),
+      'is_visible': true, // Defaults to visible
     });
   }
 
@@ -329,5 +332,75 @@ class VenueRepository {
         .from('venue_reviews')
         .update({'rating': rating, 'review_text': (text ?? '').trim()})
         .eq('review_id', reviewId);
+  }
+
+  // ---------------------------
+  // Moderation Logic
+  // ---------------------------
+
+  Future<void> reportContent({
+    required String targetType,
+    required dynamic targetId,
+    required String reportedUserId,
+    required String reason,
+    String? description,
+  }) async {
+    try {
+      final reporterId = _client.auth.currentUser?.id;
+      if (reporterId == null) throw Exception("User must be logged in to report.");
+
+      await _client.schema('pathway').from('user_reports').insert({
+        'reporter_user_id': reporterId,
+        'reported_user_id': reportedUserId,
+        'target_type': targetType,
+        'target_id': targetId.toString(),
+        'reason': reason,
+        'description': description,
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error in reportContent: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> resolveAndHideReview({
+    required dynamic reportId,
+    required int reviewId,
+    required bool shouldHide,
+  }) async {
+    try {
+      if (shouldHide) {
+        await _client.schema('pathway').from('venue_reviews').update({'is_visible': false}).eq('review_id', reviewId);
+      }
+      await _client.schema('pathway').from('user_reports').update({'status': 'resolved'}).eq('report_id', reportId);
+    } catch (e) {
+      debugPrint('Error in resolveAndHideReview: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> restoreReview({
+    required dynamic reportId,
+    required int reviewId,
+  }) async {
+    try {
+      await _client.schema('pathway').from('venue_reviews').update({'is_visible': true}).eq('review_id', reviewId);
+      await _client.schema('pathway').from('user_reports').update({'status': 'dismissed'}).eq('report_id', reportId);
+    } catch (e) {
+      debugPrint('Error in restoreReview: $e');
+      rethrow;
+    }
+  }
+
+  Future<String> fetchReportedReviewText(int reviewId) async {
+    try {
+      final data = await _client.schema('pathway').from('venue_reviews').select('review_text').eq('review_id', reviewId).maybeSingle();
+      return data?['review_text']?.toString() ?? "[No text content found]";
+    } catch (e) {
+      debugPrint('Error fetching reported review: $e');
+      return "[Error loading content]";
+    }
   }
 }

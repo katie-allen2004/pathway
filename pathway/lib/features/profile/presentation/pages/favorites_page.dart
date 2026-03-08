@@ -58,7 +58,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         venue: v,
                         isOwner: false, // optional
                         onFavoriteToggle: (_) async {
-                          // If you want unfavorite from here later, we’ll hook it up.
                           await _refresh();
                         },
                       );

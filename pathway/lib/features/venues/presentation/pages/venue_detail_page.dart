@@ -1125,7 +1125,7 @@ int _computeAccessibilityScore(VenueModel v) {
 
   final tags = v.tags.map((e) => e.toLowerCase().trim()).toList();
 
-  // Positive feature tags (adjust as your tag set evolves)
+  // Positive feature tags (adjustable if tag set evolves)
   const positiveWeights = <String, int>{
     'wheelchair accessible': 18,
     'wheelchair': 14,
@@ -1148,7 +1148,7 @@ int _computeAccessibilityScore(VenueModel v) {
     'low sensory': 6,
   };
 
-  // Negative tags (if you have them)
+  // Negative tags
   const negativeWeights = <String, int>{
     'not wheelchair accessible': -18,
     'stairs only': -16,

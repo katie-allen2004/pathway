@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
+import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:pathway/models/accessibility_settings.dart';
 
 class AccessibilitySettingsPage extends StatefulWidget {
   const AccessibilitySettingsPage({super.key});
@@ -11,6 +15,7 @@ class AccessibilitySettingsPage extends StatefulWidget {
 
 class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
   // TODO: Load/save these settings from Supabase
+
   AppThemeMode themeMode = AppThemeMode.system;
   bool highContrast = false;
   bool dyslexiaFont = false;
@@ -19,9 +24,10 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
   bool largerTouchTargets = false;
 
   double textScale = 1.0; // 1.0 = default
-
   @override
   Widget build(BuildContext context) {
+    final a11y = context.watch<AccessibilityController>();
+    final s = a11y.settings;
     final theme = Theme.of(context);
 
     // Preview style
@@ -63,9 +69,11 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
 
                     Text('Theme', style: theme.textTheme.bodyMedium),
                     const SizedBox(height: 8),
-                    ThemeModeSegmented(
-                      value: themeMode,
-                      onChanged: (v) => setState(() => themeMode = v),
+                    SwitchInstance(
+                      title: 'Dark mode',
+                      subtitle: 'Switch between light and dark appearance.',
+                      value: s.darkMode,
+                      onChanged: (v) => a11y.update(s.copyWith(darkMode: v)),
                     ),
 
                     const Divider(height: 24),
@@ -73,8 +81,8 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                     SwitchInstance(
                       title: 'High contrast',
                       subtitle: 'Increases contrast for improved readability.',
-                      value: highContrast,
-                      onChanged: (v) => setState(() => highContrast = v),
+                      value: s.highContrast,
+                      onChanged: (v) => a11y.update(s.copyWith(highContrast: v)),
                     ),
 
                     const Divider(height: 1),
@@ -82,8 +90,8 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                     SwitchInstance(
                       title: 'Bold text',
                       subtitle: 'Makes text heavier and easier to read.',
-                      value: boldText,
-                      onChanged: (v) => setState(() => boldText = v),
+                      value: s.boldText,
+                      onChanged: (v) => a11y.update(s.copyWith(boldText: v)),
                     ),
 
                     const Divider(height: 1),
@@ -91,8 +99,8 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                     SwitchInstance(
                       title: 'Dyslexia-friendly font',
                       subtitle: 'Uses a font designed to improve readability.',
-                      value: dyslexiaFont,
-                      onChanged: (v) => setState(() => dyslexiaFont = v),
+                      value: s.dyslexiaFont,
+                      onChanged: (v) => a11y.update(s.copyWith(dyslexiaFont: v)),
                     ),
 
                     const Divider(height: 24),
@@ -105,7 +113,7 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                       max: 1.5,
                       divisions: 13,
                       labelBuilder: (v) => '${(v * 100).round()}%',
-                      onChanged: (v) => setState(() => textScale = v),
+                      onChanged: (v) => a11y.update(s.copyWith(textScale: v)),
                     ),
 
                     const SizedBox(height: 12),
@@ -155,17 +163,8 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                     SwitchInstance(
                       title: 'Reduce motion',
                       subtitle: 'Minimizes animations and motion effects.',
-                      value: reduceMotion,
-                      onChanged: (v) => setState(() => reduceMotion = v),
-                    ),
-
-                    const Divider(height: 1),
-
-                    SwitchInstance(
-                      title: 'Larger touch targets',
-                      subtitle: 'Adds extra spacing to make controls easier to tap.',
-                      value: largerTouchTargets,
-                      onChanged: (v) => setState(() => largerTouchTargets = v),
+                      value: s.reduceMotion,
+                      onChanged: (v) => a11y.update(s.copyWith(reduceMotion: v)),
                     ),
                   ],
                 ),
@@ -187,17 +186,7 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        setState(() {
-                          themeMode = AppThemeMode.system;
-                          highContrast = false;
-                          dyslexiaFont = false;
-                          boldText = false;
-                          reduceMotion = false;
-                          largerTouchTargets = false;
-                          textScale = 1.0;
-                        });
-                      },
+                      onPressed: () => a11y.update(AccessibilitySettings.defaults()),
                       child: const Text('Reset'),
                     ),
                   ],

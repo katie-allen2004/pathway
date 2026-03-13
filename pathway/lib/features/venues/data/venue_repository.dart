@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'venue_model.dart';
 import 'review_model.dart';
+import 'package:pathway/features/gamification/data/badge_model.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -12,7 +13,10 @@ class VenueRepository {
       // current user id is used only to calculate saved status client-side (joined rows exist)
       //COMMENTED OUT FOR NOW DUE TO WARNINGS: final userId = _client.auth.currentUser?.id;
 
-      final query = _client.schema('pathway').from('venues').select('''
+      final query = _client
+          .schema('pathway')
+          .from('venues')
+          .select('''
             *,
             venue_tags(
               tag_id,
@@ -20,7 +24,8 @@ class VenueRepository {
             ),
             venue_reviews(review_id, user_id, rating, review_text, is_visible, created_at),
             user_favorites!left(user_id)
-          ''').eq('venue_reviews.is_visible', true); // Filter hidden reviews
+          ''')
+          .eq('venue_reviews.is_visible', true); // Filter hidden reviews
 
       // Do NOT filter by user_favorites.user_id here — that'll hide venues that are not favorited.
       final response = await query;
@@ -310,8 +315,63 @@ class VenueRepository {
       'user_id': user.id,
       'rating': rating,
       'review_text': (text ?? '').trim(),
-      'is_visible': true, // Defaults to visible
+      'is_visible': true,
     });
+
+    // Award badges (non-blocking: we try, but don’t fail the review if badge eval fails)
+    try {
+      await _client.rpc('evaluate_user_badges', params: {'p_user_id': user.id});
+    } catch (e) {
+      debugPrint('evaluate_user_badges failed: $e');
+    }
+  }
+
+  /// Fetch badges for a single user (for Profile)
+  Future<List<BadgeModel>> fetchBadgesForUser(String userId) async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('user_badges')
+          .select('badges(*)')
+          .eq('user_id', userId);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows
+          .map((r) => BadgeModel.fromMap(r['badges'] as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Error in fetchBadgesForUser: $e');
+      return [];
+    }
+  }
+
+  /// Fetch badges for many users (returns map userId -> list of badges)
+  Future<Map<String, List<BadgeModel>>> fetchBadgesForUsers(
+    List<String> userIds,
+  ) async {
+    try {
+      if (userIds.isEmpty) return {};
+
+      final res = await _client
+          .schema('pathway')
+          .from('user_badges')
+          .select('user_id, badges(*)')
+          .inFilter('user_id', userIds);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      final Map<String, List<BadgeModel>> map = {};
+
+      for (final row in rows) {
+        final uid = row['user_id'] as String;
+        final badge = BadgeModel.fromMap(row['badges'] as Map<String, dynamic>);
+        map.putIfAbsent(uid, () => []).add(badge);
+      }
+
+      return map;
+    } catch (e) {
+      debugPrint('Error in fetchBadgesForUsers: $e');
+      return {};
+    }
   }
 
   Future<void> deleteReview(int reviewId) async {
@@ -347,7 +407,8 @@ class VenueRepository {
   }) async {
     try {
       final reporterId = _client.auth.currentUser?.id;
-      if (reporterId == null) throw Exception("User must be logged in to report.");
+      if (reporterId == null)
+        throw Exception("User must be logged in to report.");
 
       await _client.schema('pathway').from('user_reports').insert({
         'reporter_user_id': reporterId,
@@ -372,9 +433,17 @@ class VenueRepository {
   }) async {
     try {
       if (shouldHide) {
-        await _client.schema('pathway').from('venue_reviews').update({'is_visible': false}).eq('review_id', reviewId);
+        await _client
+            .schema('pathway')
+            .from('venue_reviews')
+            .update({'is_visible': false})
+            .eq('review_id', reviewId);
       }
-      await _client.schema('pathway').from('user_reports').update({'status': 'resolved'}).eq('report_id', reportId);
+      await _client
+          .schema('pathway')
+          .from('user_reports')
+          .update({'status': 'resolved'})
+          .eq('report_id', reportId);
     } catch (e) {
       debugPrint('Error in resolveAndHideReview: $e');
       rethrow;
@@ -386,8 +455,16 @@ class VenueRepository {
     required int reviewId,
   }) async {
     try {
-      await _client.schema('pathway').from('venue_reviews').update({'is_visible': true}).eq('review_id', reviewId);
-      await _client.schema('pathway').from('user_reports').update({'status': 'dismissed'}).eq('report_id', reportId);
+      await _client
+          .schema('pathway')
+          .from('venue_reviews')
+          .update({'is_visible': true})
+          .eq('review_id', reviewId);
+      await _client
+          .schema('pathway')
+          .from('user_reports')
+          .update({'status': 'dismissed'})
+          .eq('report_id', reportId);
     } catch (e) {
       debugPrint('Error in restoreReview: $e');
       rethrow;
@@ -396,7 +473,12 @@ class VenueRepository {
 
   Future<String> fetchReportedReviewText(int reviewId) async {
     try {
-      final data = await _client.schema('pathway').from('venue_reviews').select('review_text').eq('review_id', reviewId).maybeSingle();
+      final data = await _client
+          .schema('pathway')
+          .from('venue_reviews')
+          .select('review_text')
+          .eq('review_id', reviewId)
+          .maybeSingle();
       return data?['review_text']?.toString() ?? "[No text content found]";
     } catch (e) {
       debugPrint('Error fetching reported review: $e');

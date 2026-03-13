@@ -5,6 +5,7 @@ import '../../data/review_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import 'package:pathway/features/gamification/data/badge_model.dart';
 
 class VenueDetailPage extends StatefulWidget {
   final int venueId;
@@ -538,8 +539,9 @@ class _ReviewsTab extends StatefulWidget {
 
 class _ReviewsTabState extends State<_ReviewsTab> {
   final _repo = VenueRepository();
+  final Map<String, Set<int>> _animatedBadgeIdsByUser = {};
   late Future<List<ReviewModel>> _reviewsFuture;
-
+  Map<String, List<BadgeModel>> _badgesByUser = {};
   String _sortMode = 'newest';
 
   @override
@@ -549,6 +551,7 @@ class _ReviewsTabState extends State<_ReviewsTab> {
       widget.venue.id,
       sortMode: _sortMode,
     );
+    _refresh(); // loads badges too
   }
 
   Future<bool> _confirmDeleteReview() async {
@@ -570,38 +573,49 @@ class _ReviewsTabState extends State<_ReviewsTab> {
         ],
       ),
     );
-
-    return result ?? false;
-  }
-
-  Future<bool> _confirmDelete() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete review?'),
-        content: const Text('This can’t be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
     return result ?? false;
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      _reviewsFuture = _repo.fetchVenueReviews(
+    try {
+      final reviews = await _repo.fetchVenueReviews(
         widget.venue.id,
         sortMode: _sortMode,
       );
-    });
+
+      final authorIds = reviews.map((r) => r.userId).toSet().toList();
+      final badgesByUser = await _repo.fetchBadgesForUsers(authorIds);
+
+      // Detect newly earned badges per user (for animation)
+      for (final uid in badgesByUser.keys) {
+        final newList = badgesByUser[uid] ?? const [];
+        final oldList = _badgesByUser[uid] ?? const [];
+
+        final oldIds = oldList.map((b) => b.badgeId).toSet();
+        final newlyEarnedIds = newList
+            .map((b) => b.badgeId)
+            .where((id) => !oldIds.contains(id))
+            .toSet();
+
+        if (newlyEarnedIds.isNotEmpty) {
+          _animatedBadgeIdsByUser[uid] = newlyEarnedIds;
+        } else {
+          _animatedBadgeIdsByUser.remove(uid);
+        }
+      }
+
+      setState(() {
+        _reviewsFuture = Future.value(reviews);
+        _badgesByUser = badgesByUser;
+      });
+    } catch (e) {
+      setState(() {
+        _reviewsFuture = _repo.fetchVenueReviews(
+          widget.venue.id,
+          sortMode: _sortMode,
+        );
+      });
+    }
   }
 
   Future<void> _openAddReview() async {
@@ -619,20 +633,18 @@ class _ReviewsTabState extends State<_ReviewsTab> {
         text: result.text,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Review submitted.")));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Review submitted.")));
 
       await widget.onReviewAdded(); // refresh parent venue (rating)
-      await _refresh(); // refresh review list
+      await _refresh(); // refresh review list + badges
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Review failed: $e")));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Review failed: $e")));
     }
   }
 
@@ -664,7 +676,7 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                   ),
                   const Spacer(),
 
-                  // Styled sort dropdown
+                  // Sort dropdown
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
@@ -675,10 +687,6 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _sortMode,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
                         items: const [
                           DropdownMenuItem(
                             value: 'newest',
@@ -697,15 +705,10 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                             child: Text('Lowest'),
                           ),
                         ],
-                        onChanged: (v) {
+                        onChanged: (v) async {
                           if (v == null) return;
-                          setState(() {
-                            _sortMode = v;
-                            _reviewsFuture = _repo.fetchVenueReviews(
-                              widget.venue.id,
-                              sortMode: _sortMode,
-                            );
-                          });
+                          setState(() => _sortMode = v);
+                          await _refresh();
                         },
                       ),
                     ),
@@ -731,6 +734,7 @@ class _ReviewsTabState extends State<_ReviewsTab> {
               ),
 
               const SizedBox(height: 20),
+
               if (reviews.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 60),
@@ -743,11 +747,16 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                   ),
                 )
               else
-                ...reviews.map(
-                  (r) => Padding(
+                ...reviews.map((r) {
+                  final badges =
+                      _badgesByUser[r.userId] ?? const <BadgeModel>[];
+
+                  return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ReviewCard(
                       review: r,
+                      badges: badges,
+                      animateBadgeIds: _animatedBadgeIdsByUser[r.userId] ?? {},
                       canManage:
                           currentUserId != null && r.userId == currentUserId,
                       onDelete: () async {
@@ -756,7 +765,6 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                         await _repo.deleteReview(r.id);
                         await _refresh();
                       },
-
                       onEdit: () async {
                         final result = await showDialog<_ReviewDraft>(
                           context: context,
@@ -774,23 +782,23 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                             rating: result.rating,
                             text: result.text,
                           );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Review updated.")),
-                            );
-                          }
+
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Review updated.")),
+                          );
+
                           await _refresh();
                         } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Edit failed: $e")),
-                            );
-                          }
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Edit failed: $e")),
+                          );
                         }
                       },
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           ),
         );
@@ -804,6 +812,8 @@ class _ReviewCard extends StatelessWidget {
   final bool canManage;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final List<BadgeModel> badges;
+  final Set<int> animateBadgeIds;
 
   const _ReviewCard({
     super.key,
@@ -811,18 +821,20 @@ class _ReviewCard extends StatelessWidget {
     required this.canManage,
     required this.onEdit,
     required this.onDelete,
+    required this.badges,
+    required this.animateBadgeIds,
   });
 
   @override
   Widget build(BuildContext context) {
-    // model to variables 
     final dateText = review.createdAt == null
         ? ""
         : "${review.createdAt!.month}/${review.createdAt!.day}/${review.createdAt!.year}";
 
     final body = (review.text ?? "").trim();
+    final visibleBadges = badges.take(2).toList();
+    final extraCount = (badges.length - visibleBadges.length).clamp(0, 999);
 
-    // container
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -841,36 +853,97 @@ class _ReviewCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // NEW: Author row + badges
           Row(
             children: [
-              _Stars(rating: review.rating), //model map
-              const Spacer(),
-              
-              // action icons
-              if (!canManage) 
-                IconButton(
-                  tooltip: 'Report Review',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.flag_outlined, size: 20, color: Colors.grey),
-                  onPressed: () => _showReportDialog(context, review),
+              Text(
+                review.userId.substring(0, 6),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
                 ),
+              ),
+              const SizedBox(width: 10),
 
-              if (dateText.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    dateText,
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+              if (badges.isNotEmpty)
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ...visibleBadges.map((b) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _MiniBadge(
+                              badge: b,
+                              animate: animateBadgeIds.contains(b.badgeId),
+                            ),
+                          );
+                        }),
+
+                        if (extraCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.grey.withOpacity(0.20),
+                              ),
+                            ),
+                            child: Text(
+                              '+$extraCount',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
 
-              // Action icons for owners (Edit/Delete)
+              if (dateText.isNotEmpty) ...[
+                const SizedBox(width: 10),
+                Text(
+                  dateText,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Stars + actions row
+          Row(
+            children: [
+              _Stars(rating: review.rating),
+              const Spacer(),
+
+              // Report for non-owner
+              if (!canManage)
+                IconButton(
+                  tooltip: 'Report Review',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.flag_outlined,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => _showReportDialog(context, review),
+                ),
+
+              // Edit/Delete for owner
               if (canManage) ...[
-                const SizedBox(width: 8),
                 IconButton(
                   tooltip: 'Edit',
                   visualDensity: VisualDensity.compact,
@@ -889,12 +962,13 @@ class _ReviewCard extends StatelessWidget {
               ],
             ],
           ),
+
           if (body.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              body, 
+              body,
               style: const TextStyle(
-                height: 1.4, 
+                height: 1.4,
                 fontSize: 14.5,
                 color: Colors.black87,
               ),
@@ -905,16 +979,168 @@ class _ReviewCard extends StatelessWidget {
     );
   }
 
-  // report logic 
   void _showReportDialog(BuildContext context, ReviewModel review) {
     showDialog(
       context: context,
       builder: (context) => ReportDialog(
         targetType: 'venue_reviews',
-        targetId: review.id, // model 
-        reportedUserId: review.userId, // user id 
+        targetId: review.id,
+        reportedUserId: review.userId,
       ),
     );
+  }
+}
+
+/// Small pill used to render badges next to the user's name
+class _MiniBadge extends StatefulWidget {
+  final BadgeModel badge;
+  final bool animate;
+
+  const _MiniBadge({required this.badge, this.animate = false, super.key});
+
+  @override
+  State<_MiniBadge> createState() => _MiniBadgeState();
+}
+
+class _MiniBadgeState extends State<_MiniBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
+
+    if (widget.animate) {
+      _ctrl.forward(from: 0.0);
+    } else {
+      _ctrl.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MiniBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If it flips from not-animated -> animated, play pop
+    if (!oldWidget.animate && widget.animate) {
+      _ctrl.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = widget.badge;
+    final baseColor = _parseHexColor(b.colorHex) ?? Colors.deepPurple;
+
+    return ScaleTransition(
+      scale: _scale,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => _showBadgeDialog(context, b, baseColor),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: baseColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: baseColor.withOpacity(0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_iconFromKey(b.iconKey), size: 14, color: baseColor),
+              const SizedBox(width: 6),
+              Text(
+                b.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: baseColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _showBadgeDialog(
+    BuildContext context,
+    BadgeModel b,
+    Color color,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withOpacity(0.25)),
+              ),
+              child: Icon(_iconFromKey(b.iconKey), color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                b.name,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          (b.description.trim().isEmpty)
+              ? "No description provided."
+              : b.description,
+          style: const TextStyle(height: 1.35),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color? _parseHexColor(String? hex) {
+    if (hex == null) return null;
+    var cleaned = hex.replaceAll('#', '');
+    if (cleaned.length == 6) cleaned = 'FF$cleaned';
+    final value = int.tryParse(cleaned, radix: 16);
+    if (value == null) return null;
+    return Color(value);
+  }
+
+  static IconData _iconFromKey(String? key) {
+    switch (key) {
+      case 'badge_pathfinder':
+        return Icons.emoji_events_rounded;
+      case 'badge_explorer':
+        return Icons.explore_rounded;
+      default:
+        return Icons.star_rounded;
+    }
   }
 }
 
@@ -1542,9 +1768,9 @@ class _ReportDialogState extends State<ReportDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to submit report: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to submit report: $e")));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -1571,8 +1797,8 @@ class _ReportDialogState extends State<ReportDialog> {
               items: _reasons
                   .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                   .toList(),
-              onChanged: _isSubmitting 
-                  ? null 
+              onChanged: _isSubmitting
+                  ? null
                   : (val) => setState(() => _selectedReason = val!),
             ),
             const SizedBox(height: 16),
@@ -1600,7 +1826,10 @@ class _ReportDialogState extends State<ReportDialog> {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Text("Submit Report"),
         ),

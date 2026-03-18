@@ -15,6 +15,7 @@ import 'help_page.dart';
 import 'privacy_policy_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 import 'favorites_page.dart';
+import 'package:pathway/features/venues/data/venue_model.dart'; 
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -38,6 +39,163 @@ class _ProfilePageState extends State<ProfilePage> {
     // admin check 
     _checkAdminStatus(); 
   }
+
+  void _showSubmissionsBottomSheet() {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent, 
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text("My Submissions", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: supabase
+                    .schema('pathway')
+                    .from('venues')
+                    .stream(primaryKey: ['venue_id'])
+                    .eq('created_by_user_id', supabase.auth.currentUser?.id ?? ''),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  final items = snapshot.data!;
+                  if (items.isEmpty) return const Center(child: Text("No submissions yet."));
+
+                  return ListView.builder(
+                    controller: controller,
+                    itemCount: items.length,
+                    itemBuilder: (context, i) {
+                      final venue = VenueModel.fromJson(items[i]);
+                      return ListTile(
+                        leading: _buildStatusIcon(venue.status),
+                        title: Text(venue.name),
+                        subtitle: Text("Status: ${venue.status}"),
+                        trailing: const Icon(Icons.info_outline, size: 20),
+                        onTap: () {
+                          _showFeedbackDetail(venue);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+// read only
+void _showFeedbackDetail(VenueModel venue) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        venue.name,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          //status badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: (venue.status == 'rejected' 
+                      ? Colors.red 
+                      : (venue.status == 'approved' ? Colors.green : Colors.orange))
+                  .withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "Status: ${venue.status.toUpperCase()}", 
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                color: venue.status == 'rejected' 
+                    ? Colors.red 
+                    : (venue.status == 'approved' ? Colors.green : Colors.orange),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // logic based text 
+          if (venue.status == 'rejected') ...[
+            const Text(
+              "Moderator Feedback:", 
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Text(
+                venue.modNotes ?? "No specific notes provided.", 
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "To resubmit, please create a new application for this venue from the map screen with the requested updates.",
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+          ] else if (venue.status == 'pending') ...[
+            const Text(
+              "Our team is currently reviewing your submission. It will appear on the map once approved.",
+              style: TextStyle(color: Colors.black54),
+            ),
+          ] else ...[
+            const Text(
+              "Your venue is live! Thank you for helping the community improve accessibility.",
+              style: TextStyle(color: Colors.black54),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context), 
+          child: const Text("Close", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
+}
+
+// list icons
+Widget _buildStatusIcon(String status) {
+  switch (status) {
+    case 'approved': return const Icon(Icons.check_circle, color: Colors.green);
+    case 'rejected': return const Icon(Icons.cancel, color: Colors.red);
+    default: return const Icon(Icons.pending, color: Colors.orange);
+  }
+}
 
   // update portion to check if a user is admin 
   void _checkAdminStatus() {
@@ -77,7 +235,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _refresh() async {
     setState(() {
       _headerFuture = _fetchHeader();
-      // UPDATED CODE: Refresh admin status
+      // admin status
       _checkAdminStatus(); 
     });
     await _headerFuture;
@@ -108,7 +266,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: PathwayAppBar(
         height: 220,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: true, 
         centertitle: true,
         title: SafeArea(
           child: FutureBuilder<_ProfileHeaderData>(
@@ -229,6 +387,17 @@ class _ProfilePageState extends State<ProfilePage> {
                         const FavoritesPage(),
                       );
                       if (changed == true) _refresh();
+                    },
+                  ),
+                ],
+              ),
+              TileSection(
+                tiles: [
+                  TileInstance(
+                    icon: Icons.map_rounded,
+                    title: 'My Venue Submissions',
+                    onTap: () {
+                      _showSubmissionsBottomSheet();
                     },
                   ),
                 ],

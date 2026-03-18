@@ -20,6 +20,13 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
         .stream(primaryKey: ['report_id']) 
         .order('created_at');
   }
+  Stream<List<Map<String, dynamic>>> _getAllVenues() {
+    return _supabase
+        .schema('pathway')
+        .from('venues')
+        .stream(primaryKey: ['venue_id'])
+        .order('created_at');
+  }
 
   Future<String> _getDisplayName(String userId) async {
     try {
@@ -35,7 +42,6 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
     }
   }
 
-  /// moderation dialog
   Future<void> _openModerationDialog(Map<String, dynamic> report) async {
     final result = await showDialog<bool>(
       context: context,
@@ -44,6 +50,55 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
 
     if (result == true && mounted) {
       _showSnackBar("Action updated successfully", isError: false);
+    }
+  }
+
+  Future<void> _handleVenueAction(Map<String, dynamic> venue, String status) async {
+    final notesController = TextEditingController();
+    
+    if (status == 'rejected') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text("Reject ${venue['name']}"),
+          content: TextField(
+            controller: notesController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: "Reason for rejection (e.g. duplicate, blurry photo)...",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text("Confirm Rejection", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    try {
+      await _supabase
+          .schema('pathway')
+          .from('venues')
+          .update({
+            'status': status,
+            'moderator_notes': notesController.text.trim(),
+          })
+          .eq('venue_id', venue['venue_id']);
+
+      if (mounted) {
+        _showSnackBar("Venue $status successfully!", isError: false);
+      }
+    } catch (e) {
+      debugPrint("Update Error: $e");
+      _showSnackBar("Failed to update venue.", isError: true);
     }
   }
 
@@ -81,7 +136,7 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
     final theme = Theme.of(context);
 
     return DefaultTabController(
-      length: 2,
+      length: 4, // tabs
       child: Scaffold(
         appBar: PathwayAppBar(
           height: 100,
@@ -96,29 +151,25 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
             Material(
               color: theme.scaffoldBackgroundColor,
               child: const TabBar(
-                indicatorColor: Colors.blueAccent,
-                labelColor: Colors.blueAccent,
-                tabs: [Tab(text: 'Pending'), Tab(text: 'History')],
+                isScrollable: true,
+                indicatorColor: Colors.deepPurple,
+                labelColor: Colors.deepPurple,
+                tabs: [
+                  Tab(text: 'Venues Pending'), 
+                  Tab(text: 'Venue History'), 
+                  Tab(text: 'Reports Pending'), 
+                  Tab(text: 'Report History')
+                ],
               ),
             ),
             Expanded(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: _getReports(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-                  
-                  final reports = snapshot.data ?? [];
-
-                  return TabBarView(
-                    children: [
-                      _buildReportList(reports, isHistory: false),
-                      _buildReportList(reports, isHistory: true),
-                    ],
-                  );
-                },
+              child: TabBarView(
+                children: [
+                  _buildVenueStream(isHistory: false),
+                  _buildVenueStream(isHistory: true),
+                  _buildReportStream(isHistory: false),
+                  _buildReportStream(isHistory: true),
+                ],
               ),
             ),
           ],
@@ -127,15 +178,122 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
     );
   }
 
-  Widget _buildEmptyState() {
+  // builds venue
+  Widget _buildVenueStream({required bool isHistory}) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _getAllVenues(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final allVenues = snapshot.data ?? [];
+        final filtered = allVenues.where((v) {
+          final s = v['status'] ?? 'pending';
+          return isHistory ? (s != 'pending') : (s == 'pending');
+        }).toList();
+
+        if (filtered.isEmpty) return _buildEmptyState(isHistory ? "No history found" : "No pending venues");
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: filtered.length,
+          itemBuilder: (context, i) => _buildVenueCard(filtered[i], isHistory),
+        );
+      },
+    );
+  }
+
+  //report list 
+  Widget _buildReportStream({required bool isHistory}) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _getReports(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final reports = snapshot.data ?? [];
+        return _buildReportList(reports, isHistory: isHistory);
+      },
+    );
+  }
+
+  Widget _buildEmptyState([String message = "No records found"]) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text("No reports found", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+          Text(message, style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
         ],
+      ),
+    );
+  }
+
+  // venue card
+  Widget _buildVenueCard(Map<String, dynamic> venue, bool isHistory) {
+    final status = venue['status'] ?? 'pending';
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  isHistory ? "Past decision" : "New venue request", 
+                  style: TextStyle(
+                    color: isHistory ? Colors.grey : Colors.orange, 
+                    fontWeight: FontWeight.bold, fontSize: 10
+                  )
+                ),
+                _StatusBadge(status: status),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(venue['name'] ?? 'Unnamed', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text("${venue['city'] ?? ''}", style: const TextStyle(color: Colors.grey)),
+            
+            if (isHistory && venue['moderator_notes'] != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
+                child: Text("Notes: ${venue['moderator_notes']}", style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+              ),
+            ],
+
+            const Divider(height: 24),
+            
+            // approve/reject
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _handleVenueAction(venue, 'rejected'),
+                    child: Text(status == 'rejected' ? "Already Rejected" : "Reject"),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _handleVenueAction(venue, 'approved'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green, 
+                      foregroundColor: Colors.white
+                    ),
+                    child: Text(status == 'approved' ? "Already Approved" : "Approve"),
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
       ),
     );
   }
@@ -216,7 +374,7 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                 child: OutlinedButton.icon(
                   onPressed: () => _openModerationDialog(report),
                   icon: const Icon(Icons.history, size: 18),
-                  label: const Text("Review / Restore"),
+                  label: const Text("Review Details"),
                 ),
               ),
             ],
@@ -238,6 +396,8 @@ class _StatusBadge extends StatelessWidget {
       case 'pending': color = Colors.orange; break;
       case 'resolved': color = Colors.red; break;
       case 'dismissed': color = Colors.green; break;
+      case 'approved': color = Colors.blue; break;
+      case 'rejected': color = Colors.redAccent; break;
       default: color = Colors.grey;
     }
 

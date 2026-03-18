@@ -8,6 +8,7 @@ class VenueRepository {
   final _client = Supabase.instance.client;
 
   /// Fetch all venues, include joined data (tags, reviews, favorites left join)
+  /// UPDATED: Now filters for 'approved' status to show only verified venues on the map
   Future<List<VenueModel>> fetchAllVenues() async {
     try {
       // current user id is used only to calculate saved status client-side (joined rows exist)
@@ -25,6 +26,7 @@ class VenueRepository {
             venue_reviews(review_id, user_id, rating, review_text, is_visible, created_at),
             user_favorites!left(user_id)
           ''')
+          .eq('status', 'approved') // verified venues only
           .eq('venue_reviews.is_visible', true); // Filter hidden reviews
 
       // Do NOT filter by user_favorites.user_id here — that'll hide venues that are not favorited.
@@ -36,6 +38,26 @@ class VenueRepository {
           .toList();
     } catch (e) {
       debugPrint('Error in fetchAllVenues: $e');
+      return [];
+    }
+  }
+
+  /// NEW: Fetch venues awaiting moderation
+  Future<List<VenueModel>> fetchPendingVenues() async {
+    try {
+      final response = await _client.schema('pathway')
+          .from('venues')
+          .select('''
+            *,
+            venue_tags(tag_id, accessibility_tags(tag_name))
+          ''')
+          .eq('status', 'pending'); // mod queue
+
+      return (response as List)
+          .map((json) => VenueModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Error in fetchPendingVenues: $e');
       return [];
     }
   }

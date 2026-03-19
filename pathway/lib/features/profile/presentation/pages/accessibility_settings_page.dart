@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
+
 import 'package:pathway/core/utils/accessibility_controller.dart';
 import 'package:pathway/models/accessibility_settings.dart';
 
@@ -16,13 +17,6 @@ class AccessibilitySettingsPage extends StatefulWidget {
 class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
   // TODO: Load/save these settings from Supabase
 
-  AppThemeMode themeMode = AppThemeMode.system;
-  bool highContrast = false;
-  bool dyslexiaFont = false;
-  bool boldText = false;
-  bool reduceMotion = false;
-  bool largerTouchTargets = false;
-
   double textScale = 1.0; // 1.0 = default
   @override
   Widget build(BuildContext context) {
@@ -30,21 +24,40 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
     final s = a11y.settings;
     final theme = Theme.of(context);
 
+    final darkDisabled = s.highContrast;
+    final contrastDisabled = s.darkMode;
+
     // Preview style
-    final previewTextTheme = theme.textTheme.apply(
-      fontSizeFactor: textScale,
-      fontFamily: dyslexiaFont ? 'OpenDyslexic' : null,
-      bodyColor: highContrast ? Colors.black : null,
-      displayColor: highContrast ? Colors.black : null,
-    );
+    final previewTheme = _previewTextTheme(theme.textTheme, s);
+    final previewWeight = s.boldText ? FontWeight.w700 : FontWeight.w400;
 
     return Scaffold(
       appBar: PathwayAppBar(
         height: 100,
         centertitle: false,
         title: Padding(
-          padding: const EdgeInsets.only(top: 2.0),
-          child: Text('Accessibility settings', style: theme.appBarTheme.titleTextStyle),
+          padding: const EdgeInsets.only(top: 2.0, right: 12.0),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final baseStyle = theme.appBarTheme.titleTextStyle ?? const TextStyle();
+              final useSmallerFont = s.dyslexiaFont;
+
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Accessibility settings',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: baseStyle.copyWith(
+                    fontSize: useSmallerFont
+                        ? (baseStyle.fontSize ?? 25) - 4
+                        : baseStyle.fontSize,
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
       body: SafeArea(
@@ -65,24 +78,40 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Display', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 12),
 
-                    Text('Theme', style: theme.textTheme.bodyMedium),
                     const SizedBox(height: 8),
                     SwitchInstance(
                       title: 'Dark mode',
-                      subtitle: 'Switch between light and dark appearance.',
+                      subtitle: darkDisabled
+                          ? 'Disabled while High contrast is enabled.'
+                          : 'Switch between light and dark appearance.',
                       value: s.darkMode,
-                      onChanged: (v) => a11y.update(s.copyWith(darkMode: v)),
+                      enabled: !darkDisabled,
+                      onChanged: (v) async {
+                        // If enabling dark mode, turn off high contrast
+                        final next = v
+                            ? s.copyWith(darkMode: true, highContrast: false)
+                            : s.copyWith(darkMode: false);
+                        await a11y.update(next);
+                      },
                     ),
 
                     const Divider(height: 24),
 
                     SwitchInstance(
                       title: 'High contrast',
-                      subtitle: 'Increases contrast for improved readability.',
+                      subtitle: contrastDisabled
+                          ? 'Disabled while Dark mode is enabled.'
+                          : 'Increases contrast for improved readability.',
                       value: s.highContrast,
-                      onChanged: (v) => a11y.update(s.copyWith(highContrast: v)),
+                      enabled: !contrastDisabled,
+                      onChanged: (v) async {
+                        // If enabling high contrast, turn off dark mode
+                        final next = v
+                            ? s.copyWith(highContrast: true, darkMode: false)
+                            : s.copyWith(highContrast: false);
+                        await a11y.update(next);
+                      },
                     ),
 
                     const Divider(height: 1),
@@ -108,7 +137,7 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                     SettingsSliderTile(
                       title: 'Text size',
                       subtitle: 'Adjust text scaling across the app.',
-                      value: textScale,
+                      value: s.textScale,
                       min: 0.85,
                       max: 1.5,
                       divisions: 13,
@@ -124,21 +153,44 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(AppRadii.input),
-                        color: theme.colorScheme.surface,
+                        color: s.highContrast
+                          ? Colors.white
+                          : theme.colorScheme.surface,
                         border: Border.all(
-                          color: theme.colorScheme.outline.withValues(alpha: 0.25),
+                          color: s.highContrast
+                            ? Colors.black
+                            : theme.colorScheme.outline.withValues(alpha: 0.25),
+                          width: s.highContrast ? 2 : 1,
                         ),
                       ),
                       child: DefaultTextStyle.merge(
-                        style: previewTextTheme.bodyMedium?.copyWith(
-                          fontWeight: boldText ? FontWeight.w700 : FontWeight.w400,
+                        style: previewTheme.bodyMedium?.copyWith(
+                          fontWeight: previewWeight,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text('Preview'),
+                          children: [
+                            Text('Preview',
+                              style: previewTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: s.highContrast ? Colors.black : null,
+                              ),
+                            ),
                             SizedBox(height: 6),
-                            Text('This is how text will look throughout the app.'),
+                            Text(
+                              'This is how text will look throughout the app.',
+                              style: previewTheme.bodyMedium?.copyWith(
+                                fontWeight: previewWeight,
+                                color: s.highContrast ? Colors.black : null,
+                              )),
+                            SizedBox(height: 8),
+                            Text(
+                              'Buttons, labels, and body text should respond immediately.',
+                              style: previewTheme.bodySmall?.copyWith(
+                                fontWeight: previewWeight,
+                                color: s.highContrast ? Colors.black : null,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -165,6 +217,16 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
                       subtitle: 'Minimizes animations and motion effects.',
                       value: s.reduceMotion,
                       onChanged: (v) => a11y.update(s.copyWith(reduceMotion: v)),
+                    ),
+
+                    const SizedBox(height: 6),
+                    Text(
+                      s.reduceMotion
+                          ? 'Animations are minimized across the app.'
+                          : 'Animations are enabled.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      ),
                     ),
                   ],
                 ),
@@ -198,4 +260,23 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
       ),
     );
   }
+
+    TextTheme _previewTextTheme(TextTheme base, AccessibilitySettings s) {
+    // Use the SAME scaling behavior as the rest of the app (main.dart uses MediaQuery textScaler),
+    // but for the preview we can apply a size factor so the box "shows" the scaling.
+    final scaled = base.apply(fontSizeFactor: s.textScale);
+
+    // Your global theme currently switches to AtkinsonHyperlegible when dyslexiaFont is on.
+    // Keep the preview consistent with that.
+    final family = s.dyslexiaFont ? 'OpenDyslexic' : null;
+
+    if (!s.highContrast && family == null) return scaled;
+
+    return scaled.apply(
+      fontFamily: family,
+      bodyColor: s.highContrast ? Colors.black : null,
+      displayColor: s.highContrast ? Colors.black : null,
+    );
+  }
 }
+

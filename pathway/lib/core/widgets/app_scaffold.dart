@@ -1,22 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/messaging/presentation/pages/conversations_page.dart';
 import '/features/auth/presentation/map_screen.dart';
 
-/*
-class MapScreen extends StatelessWidget {
-  const MapScreen({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Map / Discovery')),
-    body: const Center(
-      child: Text('Map/Discovery Content (Index 1)', style: TextStyle(fontSize: 24, color: Colors.blue)),
-    ),
-  );
-}
-*/
-
+import 'package:pathway/core/utils/accessibility_controller.dart';
 
 class BadgesScreen extends StatelessWidget {
   const BadgesScreen({Key? key}) : super(key: key);
@@ -26,17 +16,6 @@ class BadgesScreen extends StatelessWidget {
     body: const Center(
       child: Text('Badges Content', style: TextStyle(fontSize: 24, color: Colors.deepPurple)),
       )
-  );
-}
-
-class MessagesScreen extends StatelessWidget {
-  const MessagesScreen({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Messages')),
-    body: const Center(
-      child: Text('Messages Content (Index 2)', style: TextStyle(fontSize: 24, color: Colors.green)),
-    ),
   );
 }
 
@@ -52,24 +31,33 @@ class SelectedNavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Pull color scheme from Theme
+    final cs = Theme.of(context).colorScheme;
+
+    final bg = selected ? cs.onPrimary : Colors.transparent;
+    final fg = selected ? cs.primary : cs.onPrimary;
+    
     return Container(
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? Colors.white : Colors.transparent,
+        // Set decoration color to bg color from Theme
+        color: bg,
       ),
       child: Icon(
         icon,
-        color: selected ? Color.fromARGB(255, 76, 89, 185) : Colors.white),
+        // Set icon color to fg color from Theme
+        color: fg
+      )
     );
   }
 }
 
 class PathwayNavShell extends StatefulWidget { 
-  const PathwayNavShell({Key? key}) : super(key: key);
+  const PathwayNavShell({super.key});
 
   @override
-  _PathwayNavShellState createState() => _PathwayNavShellState();
+  State<PathwayNavShell> createState() => _PathwayNavShellState();
 }
 
 class _PathwayNavShellState extends State<PathwayNavShell> {
@@ -91,49 +79,65 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Pull color scheme from theme & watch AccessibilityController for theme changes
+    final cs = Theme.of(context).colorScheme;
+    final a11y = context.watch<AccessibilityController>();
+    final highContrast = a11y.settings.highContrast;
+
+    // If highContrast == true, navBg = Black. Otherwise, it is onPrimary
+    final navBg = highContrast ? Colors.black : cs.primary;
+    // If highContrast == true, navFg = White. Otherwise, it is onPrimary
+    final navFg = highContrast ? Colors.white : cs.onPrimary;
+
     return Scaffold(
       body: _widgetOptions.elementAt(_selectedIndex), 
       
       bottomNavigationBar: Container(
         // Add texture and color to the bottom navigation bar
-        decoration: const BoxDecoration(
-          color: Color.fromARGB(255, 76, 89, 185),
-          image: DecorationImage(
-            image: AssetImage('assets/images/navbar_texture.png'),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-                Color.fromARGB(30, 0, 0, 0),
-                BlendMode.dstIn,
-            )
-          ),
+        decoration: BoxDecoration(
+          color: navBg,
+          image: highContrast
+              ? null // If highContrast, no bg texture
+              : const DecorationImage(
+                  image: AssetImage('assets/images/navbar_texture.png'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Color.fromARGB(30, 0, 0, 0),
+                    BlendMode.dstIn,
+                  ),
+                ),
+        ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          navigationBarTheme: Theme.of(context).navigationBarTheme,
         ),
       child: BottomNavigationBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        // Color.fromARGB(255, 76, 89, 185),
         currentIndex: _selectedIndex,
 
-        selectedItemColor: Colors.white, 
-        unselectedItemColor: Colors.white,
+        selectedItemColor: navFg, 
+        unselectedItemColor: navFg,
 
-        selectedLabelStyle: const TextStyle(
-          fontSize: 12
+        selectedLabelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontSize: 12,
+          color: navFg,
         ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 12
+        unselectedLabelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontSize: 12,
+          color: navFg,
         ),
-
         showSelectedLabels: true,
         showUnselectedLabels: true,
 
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
           // Home icon
-            icon: const SelectedNavIcon(
+            icon: SelectedNavIcon(
               icon: Icons.home_rounded,
               selected: false,
               ), 
-            activeIcon: const SelectedNavIcon(
+            activeIcon: SelectedNavIcon(
               icon: Icons.home_rounded,
               selected: true,
               ),
@@ -141,11 +145,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
           ),
           // Map icon
           BottomNavigationBarItem(
-            icon: const SelectedNavIcon(
+            icon: SelectedNavIcon(
               icon: Icons.map_rounded,
               selected: false,
             ),
-            activeIcon: const SelectedNavIcon(
+            activeIcon: SelectedNavIcon(
               icon: Icons.map_rounded,
               selected: true,
             ),
@@ -153,11 +157,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
           ),
           // Badges icon
           BottomNavigationBarItem(
-            icon: const SelectedNavIcon(
+            icon: SelectedNavIcon(
               icon: Icons.star_rounded,
               selected: false,
             ),
-            activeIcon: const SelectedNavIcon(
+            activeIcon: SelectedNavIcon(
               icon: Icons.star_rounded,
               selected: true,
             ),
@@ -165,11 +169,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
           ),
           // Message icon
           BottomNavigationBarItem(
-            icon: const SelectedNavIcon(
+            icon: SelectedNavIcon(
               icon: Icons.message,
               selected: false,
             ),
-            activeIcon: const SelectedNavIcon(
+            activeIcon: SelectedNavIcon(
               icon: Icons.message,
               selected: true,
             ),
@@ -177,11 +181,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
           ),
 
           BottomNavigationBarItem(
-            icon: const SelectedNavIcon(
+            icon: SelectedNavIcon(
               icon: Icons.person_rounded,
               selected: false,
             ),
-            activeIcon: const SelectedNavIcon(
+            activeIcon: SelectedNavIcon(
               icon: Icons.person_rounded,
               selected: true,
             ),
@@ -191,7 +195,8 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
       ),
-      )
+      ),
+      ),
     );
   }
 }

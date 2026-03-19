@@ -79,6 +79,16 @@ flutter:
           style: italic
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
+    - family: OpenDyslexic
+      fonts: 
+        - asset: assets/fonts/OpenDyslexic-Regular.otf
+        - asset: assets/fonts/OpenDyslexic-Italic.otf
+          style: italic
+        - asset: assets/fonts/OpenDyslexic-Bold.otf
+          weight: 700
+        - asset: assets/fonts/OpenDyslexic-BoldItalic.otf
+          weight: 700
+          style: italic
           
   uses-material-design: true
 

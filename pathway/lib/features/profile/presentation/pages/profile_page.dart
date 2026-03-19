@@ -15,6 +15,9 @@ import 'help_page.dart';
 import 'privacy_policy_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 import 'favorites_page.dart';
+import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/models/accessibility_settings.dart';
 import 'package:pathway/features/venues/data/venue_model.dart'; 
 
 class ProfilePage extends StatefulWidget {
@@ -244,6 +247,8 @@ Widget _buildStatusIcon(String status) {
   Future<void> _signOut() async {
     try {
       await supabase.auth.signOut();
+      final a11y = Provider.of<AccessibilityController>(context, listen: false);
+      await a11y.update(AccessibilitySettings.defaults());
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(

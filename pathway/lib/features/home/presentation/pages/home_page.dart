@@ -1,32 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '/features/venues/data/venue_repository.dart';
+import '/features/venues/data/venue_model.dart';
+import '/features/venues/presentation/widgets/venue_card.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final _repo = VenueRepository();
+  late Future<List<VenueModel>> _venuesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _venuesFuture = _repo.fetchAllVenues();
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _venuesFuture = _repo.fetchAllVenues();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
     return Scaffold(
-      // Implement AppBar with title and search icon
       appBar: AppBar(
-        // Introduce and stylize app title
-        title: Text(
-                        'Pathway',
-                      ),
+        title: const Text('Pathway'),
         centerTitle: false,
         actions: [
-          // Implement search icon
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: navigate to map/search page
-            },
+            icon: const Icon(Icons.refresh),
+            onPressed: _refresh,
           ),
         ],
       ),
-      body: SafeArea(
-        // Introduce scrollable content with padding
+      body: RefreshIndicator(
+        onRefresh: _refresh,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -35,9 +53,8 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Welcome message for user
                     Text(
-                      'Welcome back, User!',
+                      'Welcome back!',
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -45,11 +62,10 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 18), // Location icon
+                        const Icon(Icons.location_on_outlined, size: 18),
                         const SizedBox(width: 4),
-                        // Title defining the nearby venues section
                         Text(
-                          'Nearby venues around you',
+                          'Accessible venues near you',
                           style: theme.textTheme.bodyMedium,
                         ),
                       ],
@@ -59,56 +75,65 @@ class HomePage extends StatelessWidget {
               ),
             ),
 
-            // Quick actions row
             const SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: _QuickActionsRow(),
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // Nearby venues section
             SliverToBoxAdapter(
-              child: _SectionHeader(
-                title: 'Nearby accessible venues',
-                onSeeAll: () {
-                  // TODO: navigate to full venues list / map
-                },
-              ),
-            ),
-            SliverList.builder(
-              itemCount: _dummyVenues.length,
-              itemBuilder: (context, index) {
-                // Fill section with dummy venue cards
-                final venue = _dummyVenues[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: _VenueCard(venue: venue),
-                );
-              },
+              child: _SectionHeader(title: 'Nearby accessible venues'),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // Recent reviews section
-            SliverToBoxAdapter(
-              child: _SectionHeader(
-                title: 'Recent reviews',
-                onSeeAll: () {
-                  // TODO: navigate to reviews list
-                },
-              ),
-            ),
-            SliverList.builder(
-              // Fill section with dummy review cards
-              itemCount: _dummyReviews.length,
-              itemBuilder: (context, index) {
-                final review = _dummyReviews[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: _ReviewCard(review: review),
+            FutureBuilder<List<VenueModel>>(
+              future: _venuesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SliverToBoxAdapter(
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return SliverToBoxAdapter(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Text('Error loading venues: ${snapshot.error}'),
+                      ),
+                    ),
+                  );
+                }
+                final venues = snapshot.data ?? [];
+                if (venues.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text('No venues found.'),
+                      ),
+                    ),
+                  );
+                }
+                return SliverList.builder(
+                  itemCount: venues.length,
+                  itemBuilder: (context, index) {
+                    final v = venues[index];
+                    final isOwner = v.createdByUserId == currentUserId;
+                    return VenueCard(
+                      venue: v,
+                      isOwner: isOwner,
+                      onFavoriteToggle: (updated) async {
+                        await _repo.toggleSave(v.id, v.isSaved);
+                        _refresh();
+                      },
+                    );
+                  },
                 );
               },
             ),
@@ -195,12 +220,8 @@ class _QuickActionButton extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final VoidCallback? onSeeAll;
 
-  const _SectionHeader({
-    required this.title,
-    this.onSeeAll,
-  });
+  const _SectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -208,219 +229,12 @@ class _SectionHeader extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          if (onSeeAll != null)
-            TextButton(
-              onPressed: onSeeAll,
-              child: const Text('See all'),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VenueCard extends StatelessWidget {
-  final Map<String, Object> venue;
-
-  const _VenueCard({required this.venue});
-
-  @override
-  Widget build(BuildContext context) {
-    final name = venue['name'] as String;
-    final city = venue['city'] as String;
-    final score = venue['score'] as double;
-    final features = venue['features'] as List<String>;
-
-    final theme = Theme.of(context);
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // TODO: navigate to venue detail
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title + score row
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
-
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.accessible_forward, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          score.toStringAsFixed(1),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                city,
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: -4,
-                children: features
-                    .map(
-                      (f) => Chip(
-                        label: Text(f),
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-          ),
+      child: Text(
+        title,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 }
-
-class _ReviewCard extends StatelessWidget {
-  final Map<String, Object> review;
-
-  const _ReviewCard({required this.review});
-
-  @override
-  Widget build(BuildContext context) {
-    final user = review['user'] as String;
-    final venue = review['venue'] as String;
-    final text = review['text'] as String;
-    final rating = review['rating'] as int;
-
-    final theme = Theme.of(context);
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // User + rating row
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  child: Text(user[0]),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    user,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Row(
-                  children: List.generate(
-                    5,
-                    (index) => Icon(
-                      index < rating
-                          ? Icons.star
-                          : Icons.star_border_outlined,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Review of $venue',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// --- dummy data just to make the UI feel real for now ---
-
-final List<Map<String, Object>> _dummyVenues = [
-  {
-    'name': 'Bluebird Cafe',
-    'city': 'Albuquerque, NM',
-    'score': 4.5,
-    'features': ['Ramp', 'Accessible restroom', 'Wide entrance'],
-  },
-  {
-    'name': 'Downtown Library',
-    'city': 'Albuquerque, NM',
-    'score': 4.8,
-    'features': ['Elevator', 'Braille signs', 'Quiet space'],
-  },
-  {
-    'name': 'Sunset Theater',
-    'city': 'Albuquerque, NM',
-    'score': 4.1,
-    'features': ['Reserved seating', 'Assistive listening', 'Ramp'],
-  },
-];
-
-final List<Map<String, Object>> _dummyReviews = [
-  {
-    'user': 'Alex',
-    'venue': 'Bluebird Cafe',
-    'rating': 5,
-    'text':
-        'Great ramp access and friendly staff. Tables are spaced out enough for my wheelchair.',
-  },
-  {
-    'user': 'Jordan',
-    'venue': 'Downtown Library',
-    'rating': 4,
-    'text':
-        'Elevator is a bit slow but everything is clearly labeled and easy to navigate.',
-  },
-];

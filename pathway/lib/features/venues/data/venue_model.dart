@@ -11,6 +11,7 @@ class VenueModel {
   final bool isSaved;
   final String? createdByUserId;
   final String? imagePath;
+  final String? videoPath;
   final List<String> tags;
   final double averageRating;
   final int totalReviews;
@@ -28,6 +29,7 @@ class VenueModel {
     this.isSaved = false,
     this.createdByUserId,
     this.imagePath,
+    this.videoPath,
     this.tags = const [],
     this.averageRating = 0.0,
     this.totalReviews = 0,
@@ -51,6 +53,7 @@ class VenueModel {
     String? description,
     String? addressLine1,
     String? imagePath,
+    String? videoPath,
     List<String>? tags,
     double? latitude,
     double? longitude,
@@ -66,6 +69,7 @@ class VenueModel {
       isSaved: isSaved ?? this.isSaved,
       createdByUserId: createdByUserId,
       imagePath: imagePath ?? this.imagePath,
+      videoPath: videoPath ?? this.videoPath,
       tags: tags ?? this.tags,
       averageRating: averageRating,
       totalReviews: totalReviews,
@@ -122,6 +126,7 @@ class VenueModel {
       isSaved: isSaved ?? favoriteCalculated,
       createdByUserId: json['created_by_user_id'] ?? json['created_by'],
       imagePath: json['image_path'],
+      videoPath: json['video_path'],
       tags: extractedTags,
       averageRating: (json['average_rating'] as num? ?? avg).toDouble(),
       totalReviews: (json['total_reviews'] as int? ?? count),

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/venue_model.dart';
 import '../../data/venue_repository.dart';
 import '../../data/review_model.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
+import '../../../../features/reviews/data/review_moderator.dart';
 
 class VenueDetailPage extends StatefulWidget {
   final int venueId;
@@ -236,7 +240,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       },
       body: TabBarView(
         children: [
-          _OverviewTab(venue: venue),
+          _OverviewTab(venue: venue, onPhotoUploaded: _refresh),
           _ReviewsTab(venue: venue, onReviewAdded: _refresh),
           _PostsTab(venue: venue),
         ],
@@ -247,12 +251,78 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
 /* -------------------- Tabs -------------------- */
 
-class _OverviewTab extends StatelessWidget {
+class _OverviewTab extends StatefulWidget {
   final VenueModel venue;
-  const _OverviewTab({required this.venue});
+  final VoidCallback onPhotoUploaded;
+
+  const _OverviewTab({required this.venue, required this.onPhotoUploaded});
+
+  @override
+  State<_OverviewTab> createState() => _OverviewTabState();
+}
+
+class _OverviewTabState extends State<_OverviewTab> {
+  final _repo = VenueRepository();
+  bool _uploadingPhoto = false;
+  bool _uploadingVideo = false;
+
+  VenueModel get venue => widget.venue;
+
+  Future<void> _uploadVenuePhoto() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final Uint8List bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last;
+      final path = 'venues/${venue.id}/cover.$ext';
+      await _repo.uploadToStorage(path, bytes);
+      await _repo.updateVenueImagePath(venue.id, path);
+      widget.onPhotoUploaded();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  Future<void> _uploadVenueVideo() async {
+    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    if (picked == null) return;
+
+    setState(() => _uploadingVideo = true);
+    try {
+      final Uint8List bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last;
+      final path = 'venues/${venue.id}/video.$ext';
+      await _repo.uploadToStorage(path, bytes);
+      await _repo.updateVenueVideoPath(venue.id, path);
+      widget.onPhotoUploaded();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Video upload failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingVideo = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final isOwner = currentUserId != null &&
+        venue.createdByUserId == currentUserId;
+
     final hasCoords = venue.latitude != null && venue.longitude != null;
     final hasAddress =
         (venue.addressLine1 ?? '').trim().isNotEmpty ||
@@ -282,28 +352,56 @@ class _OverviewTab extends StatelessWidget {
         const SizedBox(height: 14),
 
         _Card(
-          title: 'Photos',
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.network(
-                venue.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.grey[200],
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Image unavailable',
-                    style: TextStyle(color: Colors.grey),
+          title: 'Photos & Videos',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    venue.imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey[200],
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Image unavailable',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (venue.videoPath != null && venue.videoPath!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _VideoTile(url: _repo.getPublicUrl(venue.videoPath!)),
+              ],
+              if (isOwner) ...[
+                const SizedBox(height: 10),
+                if (_uploadingPhoto || _uploadingVideo)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _uploadVenuePhoto,
+                        icon: const Icon(Icons.upload_file, size: 18),
+                        label: const Text('Upload Photo'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _uploadVenueVideo,
+                        icon: const Icon(Icons.video_call, size: 18),
+                        label: const Text('Upload Video'),
+                      ),
+                    ],
+                  ),
+              ],
+            ],
           ),
         ),
-
-        _AccessibilityScoreCard(venue: venue),
 
         const SizedBox(height: 14),
         _Card(
@@ -574,27 +672,6 @@ class _ReviewsTabState extends State<_ReviewsTab> {
     return result ?? false;
   }
 
-  Future<bool> _confirmDelete() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete review?'),
-        content: const Text('This can’t be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
-
   Future<void> _refresh() async {
     setState(() {
       _reviewsFuture = _repo.fetchVenueReviews(
@@ -613,11 +690,29 @@ class _ReviewsTabState extends State<_ReviewsTab> {
     if (result == null) return;
 
     try {
-      await _repo.addVenueReview(
+      final reviewId = await _repo.addVenueReview(
         venueId: widget.venue.id,
         rating: result.rating,
         text: result.text,
       );
+
+      if (result.photo != null) {
+        final bytes = await result.photo!.readAsBytes();
+        final ext = result.photo!.name.split('.').last.toLowerCase();
+        final mime = _mimeFromExtension(ext);
+        final path = 'reviews/$reviewId/${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final url = await _repo.uploadToStorage(path, bytes, contentType: mime);
+        await _repo.addReviewPhoto(reviewId, url);
+      }
+
+      if (result.video != null) {
+        final bytes = await result.video!.readAsBytes();
+        final ext = result.video!.name.split('.').last.toLowerCase();
+        final mime = _mimeFromExtension(ext);
+        final path = 'reviews/$reviewId/video_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final url = await _repo.uploadToStorage(path, bytes, contentType: mime);
+        await _repo.addReviewPhoto(reviewId, url);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(
@@ -878,6 +973,45 @@ class _ReviewCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(body, style: const TextStyle(height: 1.4, fontSize: 14.5)),
           ],
+
+          if (review.photos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 100,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: review.photos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    review.photos[i],
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 100,
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          if (review.videos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 100,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: review.videos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => _VideoTile(url: review.videos[i]),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -899,6 +1033,81 @@ class _Stars extends StatelessWidget {
           color: Colors.amber,
         );
       }),
+    );
+  }
+}
+
+class _VideoTile extends StatefulWidget {
+  final String url;
+  const _VideoTile({required this.url});
+
+  @override
+  State<_VideoTile> createState() => _VideoTileState();
+}
+
+class _VideoTileState extends State<_VideoTile> {
+  late VideoPlayerController _ctrl;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..initialize().then((_) {
+        if (mounted) setState(() => _ready = true);
+      });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        if (!_ready) return;
+        setState(() {
+          _ctrl.value.isPlaying ? _ctrl.pause() : _ctrl.play();
+        });
+      },
+      child: Container(
+        width: 150,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (_ready)
+                SizedBox.expand(
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: _ctrl.value.size.width,
+                      height: _ctrl.value.size.height,
+                      child: VideoPlayer(_ctrl),
+                    ),
+                  ),
+                ),
+              if (!_ready)
+                const CircularProgressIndicator(color: Colors.white),
+              if (_ready && !_ctrl.value.isPlaying)
+                const Icon(
+                  Icons.play_circle_fill,
+                  color: Colors.white,
+                  size: 36,
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1184,6 +1393,23 @@ int _computeAccessibilityScore(VenueModel v) {
   return score;
 }
 
+String _mimeFromExtension(String ext) {
+  switch (ext) {
+    case 'mov':
+      return 'video/quicktime';
+    case 'mp4':
+      return 'video/mp4';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return 'image/jpeg';
+  }
+}
+
 String _scoreLabel(int score) {
   if (score >= 85) return 'Excellent accessibility';
   if (score >= 70) return 'Good accessibility';
@@ -1247,7 +1473,9 @@ class _Badge extends StatelessWidget {
 class _ReviewDraft {
   final int rating;
   final String? text;
-  _ReviewDraft({required this.rating, this.text});
+  final XFile? photo;
+  final XFile? video;
+  _ReviewDraft({required this.rating, this.text, this.photo, this.video});
 }
 
 class _AddReviewDialog extends StatefulWidget {
@@ -1342,11 +1570,45 @@ class _EditReviewDialogState extends State<_EditReviewDialog> {
 class _AddReviewDialogState extends State<_AddReviewDialog> {
   int _rating = 5;
   final _controller = TextEditingController();
+  XFile? _photo;
+  XFile? _video;
+
+  final ReviewModerator _moderator = ReviewModerator();
+  bool _isTraining = true;
+  String? _statusMessage;
+  Color _statusColor = Colors.transparent;
+  bool _blocked = false;
+  bool _flagged = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _moderator.train().then((_) {
+      if (mounted) {
+        setState(() {
+          _isTraining = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (picked != null) setState(() => _photo = picked);
+  }
+
+  Future<void> _pickVideo() async {
+    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    if (picked != null) setState(() => _video = picked);
   }
 
   @override
@@ -1355,30 +1617,80 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
 
     return AlertDialog(
       title: const Text("Write a review"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              const Text("Rating: "),
-              const SizedBox(width: 8),
-              DropdownButton<int>(
-                value: _rating,
-                items: [1, 2, 3, 4, 5]
-                    .map((v) => DropdownMenuItem(value: v, child: Text("$v")))
-                    .toList(),
-                onChanged: (v) => setState(() => _rating = v ?? 5),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text("Rating: "),
+                const SizedBox(width: 8),
+                DropdownButton<int>(
+                  value: _rating,
+                  items: [1, 2, 3, 4, 5]
+                      .map((v) => DropdownMenuItem(value: v, child: Text("$v")))
+                      .toList(),
+                  onChanged: (v) => setState(() => _rating = v ?? 5),
+                ),
+              ],
+            ),
+            TextField(
+              controller: _controller,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: "What was it like? (optional)",
+              ),
+            ),
+            if (_statusMessage != null) ...[              const SizedBox(height: 8),
+              Text(
+                _statusMessage!,
+                style: TextStyle(color: _statusColor, fontSize: 13),
               ),
             ],
-          ),
-          TextField(
-            controller: _controller,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: "What was it like? (optional)",
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _pickPhoto,
+                  icon: const Icon(Icons.photo, size: 18),
+                  label: const Text("Add Photo"),
+                ),
+                if (_photo != null) ...[
+                  const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _photo!.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ),
-        ],
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _pickVideo,
+                  icon: const Icon(Icons.videocam, size: 18),
+                  label: const Text("Add Video"),
+                ),
+                if (_video != null) ...[
+                  const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _video!.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -1386,15 +1698,63 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
           child: const Text("Cancel"),
         ),
         ElevatedButton(
-          onPressed: !canSubmit
+          onPressed: (_isTraining || !canSubmit || _blocked)
               ? null
               : () {
+                  final text = _controller.text.trim();
+
+                  // If already flagged and user presses again, submit anyway
+                  if (_flagged) {
+                    Navigator.pop(
+                      context,
+                      _ReviewDraft(
+                        rating: _rating,
+                        text: _controller.text,
+                        photo: _photo,
+                        video: _video,
+                      ),
+                    );
+                    return;
+                  }
+
+                  // Run moderation if model is trained and text is not empty
+                  if (_moderator.isTrained && text.isNotEmpty) {
+                    final result = _moderator.moderateContent(text);
+
+                    if (result.action == ModerationAction.blocked) {
+                      setState(() {
+                        _statusMessage = 'Blocked: ${result.reason}';
+                        _statusColor = Colors.red;
+                        _blocked = true;
+                      });
+                      return;
+                    }
+
+                    if (result.action == ModerationAction.flagged) {
+                      setState(() {
+                        _statusMessage = 'Warning: ${result.reason}. Press Submit again to post anyway.';
+                        _statusColor = Colors.orange;
+                        _flagged = true;
+                      });
+                      return;
+                    }
+                  }
+
                   Navigator.pop(
                     context,
-                    _ReviewDraft(rating: _rating, text: _controller.text),
+                    _ReviewDraft(
+                      rating: _rating,
+                      text: _controller.text,
+                      photo: _photo,
+                      video: _video,
+                    ),
                   );
                 },
-          child: const Text("Submit"),
+          child: _isTraining
+              ? const Text("Training AI...")
+              : _flagged
+                  ? const Text("Submit Anyway")
+                  : const Text("Submit"),
         ),
       ],
     );
@@ -1445,16 +1805,5 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Location copied.')));
     }
-  }
-
-  static String _formattedAddress(VenueModel v) {
-    final parts = <String>[
-      if ((v.addressLine1 ?? '').trim().isNotEmpty) v.addressLine1!.trim(),
-      if ((v.city ?? '').trim().isNotEmpty) v.city!.trim(),
-      if ((v.zipCode ?? '').trim().isNotEmpty) v.zipCode!.trim(),
-    ];
-
-    if (parts.isEmpty) return '—';
-    return parts.join(', ');
   }
 }

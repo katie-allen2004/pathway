@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 
-import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:pathway/models/accessibility_settings.dart';
 
 class AccessibilitySettingsPage extends StatefulWidget {

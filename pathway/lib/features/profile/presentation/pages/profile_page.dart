@@ -15,7 +15,7 @@ import 'help_page.dart';
 import 'privacy_policy_page.dart';
 import 'package:pathway/features/auth/presentation/login_screen.dart';
 import 'favorites_page.dart';
-import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:pathway/models/accessibility_settings.dart';
 import 'package:pathway/features/venues/data/venue_model.dart'; 

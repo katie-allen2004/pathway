@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'forgot_password_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 // Import validators
 import 'package:pathway/core/utils/validators.dart';

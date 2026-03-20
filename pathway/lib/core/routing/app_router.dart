@@ -5,3 +5,8 @@ Future<dynamic> routePage(BuildContext context, Widget page) {
     MaterialPageRoute(builder: (_) => page),
   );
 }
+
+class AppRouter {
+  static final GlobalKey<NavigatorState> navigatorKey =
+  GlobalKey<NavigatorState>();
+}

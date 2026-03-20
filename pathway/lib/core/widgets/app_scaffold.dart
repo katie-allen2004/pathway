@@ -6,7 +6,7 @@ import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/messaging/presentation/pages/conversations_page.dart';
 import '/features/auth/presentation/map_screen.dart';
 
-import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class BadgesScreen extends StatelessWidget {
   const BadgesScreen({Key? key}) : super(key: key);

@@ -3,10 +3,12 @@ import 'features/auth/presentation/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart'; // Added Google Fonts package for custom font
 import 'core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'core/utils/accessibility_controller.dart';
+import 'core/services/accessibility_controller.dart';
 import 'package:provider/provider.dart';
 import '/features/auth/data/user_repository.dart'; 
 import 'package:pathway/models/accessibility_settings.dart';
+import 'package:pathway/core/widgets/notification_host.dart';
+import 'package:pathway/core/routing/app_router.dart';
 
 ThemeData buildPathwayTheme({required Brightness brightness}) {
   final colorScheme = ColorScheme.fromSeed(
@@ -146,6 +148,7 @@ class PathwayApp extends StatelessWidget {
           final themedDark  = _applyA11yToTheme(darkBase, s);
 
           return MaterialApp(
+            navigatorKey: AppRouter.navigatorKey,
             title: 'Pathway',
             theme: themedLight,
             darkTheme: themedDark,
@@ -164,7 +167,7 @@ class PathwayApp extends StatelessWidget {
                 out = TickerMode(enabled: false, child: out);
               }
 
-              return out;
+              return InAppNotificationHost(child: out); // return out;
             },
             home: const LoginScreen(),
           );

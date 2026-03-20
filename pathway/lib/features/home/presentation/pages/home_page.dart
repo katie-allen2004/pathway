@@ -1,32 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:pathway/core/services/notification_controller.dart';
+import 'package:pathway/models/notification.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // Implement AppBar with title and search icon
       appBar: AppBar(
-        // Introduce and stylize app title
-        title: Text(
-                        'Pathway',
-                      ),
+        title: const Text('Pathway'),
         centerTitle: false,
         actions: [
-          // Implement search icon
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
               // TODO: navigate to map/search page
             },
           ),
+          ElevatedButton(
+            onPressed: () {
+              InAppNotificationController.instance.show(
+                const InAppNotification(
+                  title: 'Test',
+                  body: 'You have a new notification',
+                ),
+              );
+            },
+            child: const Text('Show notification'),
+          )
         ],
       ),
       body: SafeArea(
-        // Introduce scrollable content with padding
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -35,7 +52,6 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Welcome message for user
                     Text(
                       'Welcome back, User!',
                       style: theme.textTheme.headlineSmall?.copyWith(
@@ -45,9 +61,8 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 18), // Location icon
+                        const Icon(Icons.location_on_outlined, size: 18),
                         const SizedBox(width: 4),
-                        // Title defining the nearby venues section
                         Text(
                           'Nearby venues around you',
                           style: theme.textTheme.bodyMedium,
@@ -58,30 +73,21 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Quick actions row
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: _QuickActionsRow(),
               ),
             ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // Nearby venues section
             SliverToBoxAdapter(
               child: _SectionHeader(
                 title: 'Nearby accessible venues',
-                onSeeAll: () {
-                  // TODO: navigate to full venues list / map
-                },
               ),
             ),
             SliverList.builder(
               itemCount: _dummyVenues.length,
               itemBuilder: (context, index) {
-                // Fill section with dummy venue cards
                 final venue = _dummyVenues[index];
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -89,20 +95,13 @@ class HomePage extends StatelessWidget {
                 );
               },
             ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // Recent reviews section
             SliverToBoxAdapter(
               child: _SectionHeader(
                 title: 'Recent reviews',
-                onSeeAll: () {
-                  // TODO: navigate to reviews list
-                },
               ),
             ),
             SliverList.builder(
-              // Fill section with dummy review cards
               itemCount: _dummyReviews.length,
               itemBuilder: (context, index) {
                 final review = _dummyReviews[index];
@@ -112,7 +111,6 @@ class HomePage extends StatelessWidget {
                 );
               },
             ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),

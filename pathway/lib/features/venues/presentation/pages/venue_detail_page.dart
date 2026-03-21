@@ -824,6 +824,18 @@ class _ReviewCard extends StatelessWidget {
     required this.badges,
     required this.animateBadgeIds,
   });
+  String _displayName(ReviewModel review) {
+    final username = review.username?.trim();
+    if (username != null && username.isNotEmpty) {
+      return username;
+    }
+
+    if (review.userId.length >= 6) {
+      return review.userId.substring(0, 6);
+    }
+
+    return 'User';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -832,7 +844,7 @@ class _ReviewCard extends StatelessWidget {
         : "${review.createdAt!.month}/${review.createdAt!.day}/${review.createdAt!.year}";
 
     final body = (review.text ?? "").trim();
-    final visibleBadges = badges.take(2).toList();
+    final visibleBadges = badges;
     final extraCount = (badges.length - visibleBadges.length).clamp(0, 999);
 
     return Container(
@@ -857,11 +869,12 @@ class _ReviewCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                review.userId.substring(0, 6),
+                _displayName(review),
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 14,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(width: 10),
 

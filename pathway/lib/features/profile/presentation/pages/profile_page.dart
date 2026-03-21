@@ -19,6 +19,8 @@ import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:pathway/models/accessibility_settings.dart';
 import 'package:pathway/features/venues/data/venue_model.dart'; 
+import '../widgets/badges_section.dart';
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -117,6 +119,7 @@ void _showFeedbackDetail(VenueModel venue) {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const BadgesSection(),
           //status badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

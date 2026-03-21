@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'venue_model.dart';
 import 'review_model.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
+import 'package:pathway/features/gamification/data/badge_tab_data.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -45,7 +46,8 @@ class VenueRepository {
   /// NEW: Fetch venues awaiting moderation
   Future<List<VenueModel>> fetchPendingVenues() async {
     try {
-      final response = await _client.schema('pathway')
+      final response = await _client
+          .schema('pathway')
           .from('venues')
           .select('''
             *,
@@ -256,42 +258,82 @@ class VenueRepository {
     int venueId, {
     String sortMode = 'newest',
   }) async {
-    dynamic query = _client
-        .schema('pathway')
-        .from('venue_reviews')
-        .select()
-        .eq('venue_id', venueId)
-        .eq('is_visible', true); // Added visibility filter
+    try {
+      dynamic query = _client
+          .schema('pathway')
+          .from('venue_reviews')
+          .select('''
+          review_id,
+          venue_id,
+          user_id,
+          rating,
+          review_text,
+          created_at,
+          is_visible
+        ''')
+          .eq('venue_id', venueId)
+          .eq('is_visible', true);
 
-    switch (sortMode) {
-      case 'oldest':
-        query = query
-            .order('created_at', ascending: true)
-            .order('review_id', ascending: true);
-        break;
+      switch (sortMode) {
+        case 'oldest':
+          query = query
+              .order('created_at', ascending: true)
+              .order('review_id', ascending: true);
+          break;
+        case 'highest':
+          query = query
+              .order('rating', ascending: false)
+              .order('created_at', ascending: false);
+          break;
+        case 'lowest':
+          query = query
+              .order('rating', ascending: true)
+              .order('created_at', ascending: false);
+          break;
+        default:
+          query = query
+              .order('created_at', ascending: false)
+              .order('review_id', ascending: false);
+      }
 
-      case 'highest':
-        query = query
-            .order('rating', ascending: false)
-            .order('created_at', ascending: false);
-        break;
+      final res = await query;
+      final reviewRows = (res as List).cast<Map<String, dynamic>>();
 
-      case 'lowest':
-        query = query
-            .order('rating', ascending: true)
-            .order('created_at', ascending: false);
-        break;
+      if (reviewRows.isEmpty) return [];
 
-      default:
-        query = query
-            .order('created_at', ascending: false)
-            .order('review_id', ascending: false);
+      final userIds = reviewRows
+          .map((r) => r['user_id']?.toString())
+          .whereType<String>()
+          .toSet()
+          .toList();
+
+      final profileRes = await _client
+          .schema('pathway')
+          .from('profiles')
+          .select('user_id, display_name')
+          .inFilter('user_id', userIds);
+
+      final profileRows = (profileRes as List).cast<Map<String, dynamic>>();
+
+      final usernameByUserId = <String, String>{};
+      for (final row in profileRows) {
+        final userId = row['user_id']?.toString();
+        final displayName = row['display_name']?.toString().trim();
+
+        if (userId != null && displayName != null && displayName.isNotEmpty) {
+          usernameByUserId[userId] = displayName;
+        }
+      }
+
+      return reviewRows.map((row) {
+        final copy = Map<String, dynamic>.from(row);
+        copy['username'] = usernameByUserId[row['user_id']?.toString()];
+        return ReviewModel.fromMap(copy);
+      }).toList();
+    } catch (e) {
+      debugPrint('Error in fetchVenueReviews: $e');
+      return [];
     }
-
-    final res = await query;
-
-    final list = (res as List).cast<Map<String, dynamic>>();
-    return list.map(ReviewModel.fromMap).toList();
   }
 
   Future<List<VenueModel>> fetchFavoritedVenues() async {
@@ -364,6 +406,40 @@ class VenueRepository {
     } catch (e) {
       debugPrint('Error in fetchBadgesForUser: $e');
       return [];
+    }
+  }
+
+  Future<List<BadgeModel>> fetchAllBadges() async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('badges')
+          .select()
+          .order('badge_id', ascending: true);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(BadgeModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error in fetchAllBadges: $e');
+      return [];
+    }
+  }
+
+  Future<BadgeTabData> fetchBadgeTabData(String userId) async {
+    try {
+      final allBadges = await fetchAllBadges();
+      final earnedBadges = await fetchBadgesForUser(userId);
+
+      final earnedIds = earnedBadges.map((b) => b.badgeId).toSet();
+
+      final lockedBadges = allBadges
+          .where((b) => !earnedIds.contains(b.badgeId))
+          .toList();
+
+      return BadgeTabData(earned: earnedBadges, locked: lockedBadges);
+    } catch (e) {
+      debugPrint('Error in fetchBadgeTabData: $e');
+      return BadgeTabData(earned: [], locked: []);
     }
   }
 

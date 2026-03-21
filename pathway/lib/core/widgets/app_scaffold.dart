@@ -7,16 +7,44 @@ import '../../features/messaging/presentation/pages/conversations_page.dart';
 import '/features/auth/presentation/map_screen.dart';
 
 import 'package:pathway/core/services/accessibility_controller.dart';
+import 'package:pathway/features/profile/presentation/widgets/badges_section.dart';
 
 class BadgesScreen extends StatelessWidget {
-  const BadgesScreen({Key? key}) : super(key: key);
+  const BadgesScreen({super.key});
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Badges')),
-    body: const Center(
-      child: Text('Badges Content', style: TextStyle(fontSize: 24, color: Colors.deepPurple)),
-      )
-  );
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F1F7),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 56, 24, 28),
+            decoration: const BoxDecoration(color: Color(0xFF4F67D6)),
+            child: const Text(
+              'Badges',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 620),
+                  child: BadgesSection(),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class SelectedNavIcon extends StatelessWidget {
@@ -31,29 +59,20 @@ class SelectedNavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pull color scheme from Theme
     final cs = Theme.of(context).colorScheme;
 
     final bg = selected ? cs.onPrimary : Colors.transparent;
     final fg = selected ? cs.primary : cs.onPrimary;
-    
+
     return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        // Set decoration color to bg color from Theme
-        color: bg,
-      ),
-      child: Icon(
-        icon,
-        // Set icon color to fg color from Theme
-        color: fg
-      )
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
+      child: Icon(icon, color: fg),
     );
   }
 }
 
-class PathwayNavShell extends StatefulWidget { 
+class PathwayNavShell extends StatefulWidget {
   const PathwayNavShell({super.key});
 
   @override
@@ -61,14 +80,14 @@ class PathwayNavShell extends StatefulWidget {
 }
 
 class _PathwayNavShellState extends State<PathwayNavShell> {
-  int _selectedIndex = 0; 
+  int _selectedIndex = 0;
 
   final List<Widget> _widgetOptions = <Widget>[
     const HomePage(),
-    const MapScreen(),        
-    const BadgesScreen(),      
-    const ConversationsPage(),  
-    const ProfilePage(),    
+    const MapScreen(),
+    const BadgesScreen(),
+    const ConversationsPage(),
+    const ProfilePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -90,8 +109,8 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
     final navFg = highContrast ? Colors.white : cs.onPrimary;
 
     return Scaffold(
-      body: _widgetOptions.elementAt(_selectedIndex), 
-      
+      body: _widgetOptions.elementAt(_selectedIndex),
+
       bottomNavigationBar: Container(
         // Add texture and color to the bottom navigation bar
         decoration: BoxDecoration(
@@ -107,95 +126,93 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
                   ),
                 ),
         ),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          navigationBarTheme: Theme.of(context).navigationBarTheme,
-        ),
-      child: BottomNavigationBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        currentIndex: _selectedIndex,
+        child: Theme(
+          data: Theme.of(
+            context,
+          ).copyWith(navigationBarTheme: Theme.of(context).navigationBarTheme),
+          child: BottomNavigationBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            currentIndex: _selectedIndex,
 
-        selectedItemColor: navFg, 
-        unselectedItemColor: navFg,
+            selectedItemColor: navFg,
+            unselectedItemColor: navFg,
 
-        selectedLabelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontSize: 12,
-          color: navFg,
-        ),
-        unselectedLabelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontSize: 12,
-          color: navFg,
-        ),
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
+            selectedLabelStyle: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontSize: 12, color: navFg),
+            unselectedLabelStyle: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontSize: 12, color: navFg),
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
 
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-          // Home icon
-            icon: SelectedNavIcon(
-              icon: Icons.home_rounded,
-              selected: false,
-              ), 
-            activeIcon: SelectedNavIcon(
-              icon: Icons.home_rounded,
-              selected: true,
+            items: const <BottomNavigationBarItem>[
+              BottomNavigationBarItem(
+                // Home icon
+                icon: const SelectedNavIcon(
+                  icon: Icons.home_rounded,
+                  selected: false,
+                ),
+                activeIcon: const SelectedNavIcon(
+                  icon: Icons.home_rounded,
+                  selected: true,
+                ),
+                label: 'Home',
               ),
-            label: 'Home'
-          ),
-          // Map icon
-          BottomNavigationBarItem(
-            icon: SelectedNavIcon(
-              icon: Icons.map_rounded,
-              selected: false,
-            ),
-            activeIcon: SelectedNavIcon(
-              icon: Icons.map_rounded,
-              selected: true,
-            ),
-            label: 'Map'
-          ),
-          // Badges icon
-          BottomNavigationBarItem(
-            icon: SelectedNavIcon(
-              icon: Icons.star_rounded,
-              selected: false,
-            ),
-            activeIcon: SelectedNavIcon(
-              icon: Icons.star_rounded,
-              selected: true,
-            ),
-            label: 'Badges'
-          ),
-          // Message icon
-          BottomNavigationBarItem(
-            icon: SelectedNavIcon(
-              icon: Icons.message,
-              selected: false,
-            ),
-            activeIcon: SelectedNavIcon(
-              icon: Icons.message,
-              selected: true,
-            ),
-            label: 'Messages'
-          ),
+              // Map icon
+              BottomNavigationBarItem(
+                icon: const SelectedNavIcon(
+                  icon: Icons.map_rounded,
+                  selected: false,
+                ),
+                activeIcon: const SelectedNavIcon(
+                  icon: Icons.map_rounded,
+                  selected: true,
+                ),
+                label: 'Map',
+              ),
+              // Badges icon
+              BottomNavigationBarItem(
+                icon: const SelectedNavIcon(
+                  icon: Icons.star_rounded,
+                  selected: false,
+                ),
+                activeIcon: const SelectedNavIcon(
+                  icon: Icons.star_rounded,
+                  selected: true,
+                ),
+                label: 'Badges',
+              ),
+              // Message icon
+              BottomNavigationBarItem(
+                icon: const SelectedNavIcon(
+                  icon: Icons.message,
+                  selected: false,
+                ),
+                activeIcon: const SelectedNavIcon(
+                  icon: Icons.message,
+                  selected: true,
+                ),
+                label: 'Messages',
+              ),
 
-          BottomNavigationBarItem(
-            icon: SelectedNavIcon(
-              icon: Icons.person_rounded,
-              selected: false,
-            ),
-            activeIcon: SelectedNavIcon(
-              icon: Icons.person_rounded,
-              selected: true,
-            ),
-            label: 'Profile'
+              BottomNavigationBarItem(
+                icon: const SelectedNavIcon(
+                  icon: Icons.person_rounded,
+                  selected: false,
+                ),
+                activeIcon: const SelectedNavIcon(
+                  icon: Icons.person_rounded,
+                  selected: true,
+                ),
+                label: 'Profile',
+              ),
+            ],
+            onTap: _onItemTapped,
+            type: BottomNavigationBarType.fixed,
           ),
-        ],
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-      ),
-      ),
+        ),
       ),
     );
   }

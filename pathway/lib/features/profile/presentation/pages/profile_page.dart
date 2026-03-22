@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 import 'package:pathway/models/accessibility_settings.dart';
 import 'package:pathway/features/venues/data/venue_model.dart'; 
 import '../widgets/badges_section.dart';
+import 'follow_list_page.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -37,12 +38,17 @@ class _ProfilePageState extends State<ProfilePage> {
   // admin status
   bool _isAdmin = false; 
 
+  // follow counts
+  int _followerCount = 0;
+  int _followingCount = 0;
+
   @override
   void initState() {
     super.initState();
     _headerFuture = _fetchHeader();
     // admin check 
     _checkAdminStatus(); 
+    _loadFollowCounts();
   }
 
   void _showSubmissionsBottomSheet() {
@@ -203,13 +209,51 @@ Widget _buildStatusIcon(String status) {
   }
 }
 
-  // update portion to check if a user is admin 
+  // updated for admin view 
   void _checkAdminStatus() {
     final user = supabase.auth.currentUser;
     setState(() {
       _isAdmin = user?.userMetadata?['role'] == 'admin' || 
                  user?.email == 'admin@pathway.com'; 
     });
+  }
+
+  Future<void> _loadFollowCounts() async {
+    final authUser = supabase.auth.currentUser;
+    if (authUser == null) return;
+
+    try {
+      final userRow = await supabase
+          .schema('pathway')
+          .from('users')
+          .select('user_id')
+          .eq('external_id', authUser.id)
+          .maybeSingle();
+
+      if (userRow == null) return;
+
+      final pathwayUserId = userRow['user_id'] as int;
+
+      final followers = await supabase
+          .schema('pathway')
+          .from('user_subscriptions')
+          .select('subscriber_user_id')
+          .eq('target_user_id', pathwayUserId);
+
+      final following = await supabase
+          .schema('pathway')
+          .from('user_subscriptions')
+          .select('target_user_id')
+          .eq('subscriber_user_id', pathwayUserId);
+
+      if (!mounted) return;
+      setState(() {
+        _followerCount = (followers as List).length;
+        _followingCount = (following as List).length;
+      });
+    } catch (e) {
+      debugPrint('Failed to load follow counts: $e');
+    }
   }
 
   Future<_ProfileHeaderData> _fetchHeader() async {
@@ -231,8 +275,12 @@ Widget _buildStatusIcon(String status) {
       );
     }
 
+    final rawDisplayName = profileRow['display_name'] as String?;
+
     return _ProfileHeaderData(
-      displayName: (profileRow['display_name'] as String?) ?? 'User',
+      displayName: (rawDisplayName != null && rawDisplayName.trim().isNotEmpty)
+          ? rawDisplayName
+          : 'User',
       email: authUser.email ?? '',
       avatarUrl: profileRow['avatar_url'] as String?,
     );
@@ -244,6 +292,7 @@ Widget _buildStatusIcon(String status) {
       // admin status
       _checkAdminStatus(); 
     });
+    _loadFollowCounts();
     await _headerFuture;
   }
 
@@ -322,6 +371,37 @@ Widget _buildStatusIcon(String status) {
                       color: Color.fromARGB(255, 232, 227, 245),
                       fontSize: 20,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _FollowCountButton(
+                        label: 'Followers',
+                        count: _followerCount,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const FollowListPage(mode: 'followers'),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _FollowCountButton(
+                        label: 'Following',
+                        count: _followingCount,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const FollowListPage(mode: 'following'),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   if (snapshot.hasError) ...[
                     const SizedBox(height: 8),
@@ -514,6 +594,54 @@ Widget _buildStatusIcon(String status) {
                       ],
                     ),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FollowCountButton extends StatelessWidget {
+  final String label;
+  final int count;
+  final VoidCallback onTap;
+
+  const _FollowCountButton({
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0),
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                count.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
                 ),
               ),
             ],

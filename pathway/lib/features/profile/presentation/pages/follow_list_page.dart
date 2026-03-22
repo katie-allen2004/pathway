@@ -93,19 +93,45 @@ class _FollowListPageState extends State<FollowListPage> {
       final users = await supabase
           .schema('pathway')
           .from('users')
-          .select('user_id, external_id, profiles(display_name, avatar_url)')
+          .select('user_id, external_id, email')
           .inFilter('user_id', ids);
 
+      final externalIds = (users as List)
+          .map<String>((row) => row['external_id'] as String)
+          .toList();
+
+      final profiles = await supabase
+          .schema('pathway')
+          .from('profiles')
+          .select('user_id, display_name, avatar_url')
+          .inFilter('user_id', externalIds);
+
+      final profileMap = <String, Map<String, dynamic>>{};
+      for (final row in (profiles as List)) {
+        profileMap[row['user_id'] as String] = row as Map<String, dynamic>;
+      }
+
       final userList = (users as List).map<Map<String, dynamic>>((row) {
-        final profile = row['profiles'];
+        final userId = row['user_id'] as int;
+        final externalId = row['external_id'] as String;
+        final profile = profileMap[externalId];
+
+      final rawDisplayName = profile?['display_name'] as String?;
+      final email = row['email'] as String?;
+
+      final fallbackName = (email != null && email.contains('@'))
+          ? email.split('@').first
+          : 'User';
+
+      final displayName =
+          (rawDisplayName != null && rawDisplayName.trim().isNotEmpty)
+              ? rawDisplayName
+              : fallbackName;
+
         return {
-          'user_id': row['user_id'],
-          'external_id': row['external_id'],
-          'display_name': profile != null &&
-                  profile['display_name'] != null &&
-                  (profile['display_name'] as String).trim().isNotEmpty
-              ? profile['display_name']
-              : 'User',
+          'user_id': userId,
+          'external_id': externalId,
+          'display_name': displayName,
           'avatar_url': profile?['avatar_url'],
         };
       }).toList();

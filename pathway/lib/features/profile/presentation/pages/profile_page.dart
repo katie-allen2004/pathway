@@ -220,19 +220,31 @@ Widget _buildStatusIcon(String status) {
 
   Future<void> _loadFollowCounts() async {
     final authUser = supabase.auth.currentUser;
-    if (authUser == null) return;
+    if (authUser == null) {
+      debugPrint('No auth user found');
+      return;
+    }
+
+    debugPrint('AUTH USER ID: ${authUser.id}');
+    debugPrint('AUTH EMAIL: ${authUser.email}');
 
     try {
       final userRow = await supabase
           .schema('pathway')
           .from('users')
-          .select('user_id')
+          .select('user_id, external_id')
           .eq('external_id', authUser.id)
           .maybeSingle();
 
-      if (userRow == null) return;
+      debugPrint('PATHWAY USER ROW: $userRow');
+
+      if (userRow == null) {
+        debugPrint('No matching pathway.users row found for this auth user');
+        return;
+      }
 
       final pathwayUserId = userRow['user_id'] as int;
+      debugPrint('PATHWAY USER ID: $pathwayUserId');
 
       final followers = await supabase
           .schema('pathway')
@@ -246,15 +258,20 @@ Widget _buildStatusIcon(String status) {
           .select('target_user_id')
           .eq('subscriber_user_id', pathwayUserId);
 
+      debugPrint('FOLLOWERS RAW: $followers');
+      debugPrint('FOLLOWING RAW: $following');
+
       if (!mounted) return;
       setState(() {
         _followerCount = (followers as List).length;
         _followingCount = (following as List).length;
       });
-    } catch (e) {
-      debugPrint('Failed to load follow counts: $e');
-    }
+
+      debugPrint('COUNTS SET: followers=$_followerCount following=$_followingCount');
+  } catch (e) {
+    debugPrint('Failed to load follow counts: $e');
   }
+}
 
   Future<_ProfileHeaderData> _fetchHeader() async {
     final authUser = supabase.auth.currentUser;

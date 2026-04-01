@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '/features/venues/data/venue_repository.dart';
 import '/features/venues/data/venue_model.dart';
@@ -134,6 +136,10 @@ class _MapScreenState extends State<MapScreen> {
   }
 
 void _showSubmissionConfirmation() {
+  final theme = Theme.of(context);
+  final cs = theme.colorScheme;
+  final a11y = context.read<AccessibilityController>().settings;
+
   showDialog(
     context: context,
     barrierDismissible: false, // user clicks button
@@ -142,11 +148,13 @@ void _showSubmissionConfirmation() {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.hourglass_empty_rounded, color: Colors.orange, size: 50),
+          Icon(Icons.hourglass_empty_rounded, color: a11y.highContrast ? Colors.black : Colors.orange, size: 50),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             "Venue Submitted!",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -158,10 +166,10 @@ void _showSubmissionConfirmation() {
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: a11y.highContrast ? Colors.black : cs.primary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text("Awesome", style: TextStyle(color: Colors.white)),
+            child: Text("Awesome", style: TextStyle(color: a11y.highContrast ? Colors.white : cs.onPrimary)),
           ),
         ],
       ),
@@ -537,6 +545,10 @@ Row(
 }
 
   void _showDiscoveryTray() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.read<AccessibilityController>().settings;
+
     final String? currentUserId = _supabase.auth.currentUser?.id;
 
     showModalBottomSheet(
@@ -548,9 +560,12 @@ Row(
           builder: (BuildContext context, StateSetter setModalState) {
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF5F5FA),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+              decoration: BoxDecoration(
+                color: a11y.highContrast ? Colors.white : cs.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+                border: a11y.highContrast
+                    ? const Border(top: BorderSide(color: Colors.black, width: 2))
+                    : null,
               ),
               child: Column(
                 children: [
@@ -560,14 +575,17 @@ Row(
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey,
+                      color: a11y.highContrast ? Colors.black : Colors.grey,
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
 
-                  const Text(
+                  Text(
                     "Discovery",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: a11y.highContrast ? Colors.black : null,
+                    ),
                   ),
 
                   const SizedBox(height: 10),
@@ -649,11 +667,14 @@ Row(
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: a11y.highContrast ? Colors.black : cs.primary,
         onPressed: () => _showAddVenueDialog(),
-        child: const Icon(Icons.add, color: Colors.white),
+        child: Icon(Icons.add, color: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.onPrimary),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -682,10 +703,10 @@ fmap.FlutterMap(
                 SnackBar(content: Text(v.name)),
               );
             },
-            child: const Icon(
+            child: Icon(
               Icons.location_on, 
-              color: Colors.deepPurple, 
-              size: 40
+              color: a11y.highContrast ? Colors.black : cs.primary, 
+              size: a11y.textScale >= 1.2 ? 46 : 40,
             ),
           ),
         );
@@ -710,14 +731,17 @@ fmap.FlutterMap(
                           },
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
+                            decoration: BoxDecoration(
+                              color: cs.surface,
                               shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              boxShadow: a11y.highContrast
+                                  ? []
+                                  : const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              border: a11y.highContrast ? Border.all(color: Colors.black, width: 2) : null,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.person,
-                              color: Colors.deepPurple,
+                              color: a11y.highContrast ? Colors.black : cs.primary,
                             ),
                           ),
                         ),
@@ -726,21 +750,26 @@ fmap.FlutterMap(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cs.surface,
                               borderRadius: BorderRadius.circular(30),
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black12, blurRadius: 8),
-                              ],
+                              boxShadow: a11y.highContrast
+                                  ? []
+                                  : const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              border: a11y.highContrast ? Border.all(color: Colors.black, width: 2) : null,
                             ),
                             child: TextField(
                               controller: _searchController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Search venue...",
+                                hintStyle: theme.textTheme.bodyMedium,
                                 border: InputBorder.none,
                                 icon: Icon(
                                   Icons.search,
-                                  color: Colors.deepPurple,
+                                  color: a11y.highContrast ? Colors.black : cs.primary,
                                 ),
+                              ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: a11y.boldText ? FontWeight.w700 : null,
                               ),
                             ),
                           ),
@@ -750,13 +779,13 @@ fmap.FlutterMap(
                           onTap: _showDiscoveryTray,
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Colors.deepPurple,
+                            decoration: BoxDecoration(
+                              color: a11y.highContrast ? Colors.black : cs.primary,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.explore,
-                              color: Colors.white,
+                              color: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.onPrimary,
                             ),
                           ),
                         ),

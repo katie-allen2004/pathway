@@ -58,19 +58,30 @@ class SelectedNavIcon extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    Widget build(BuildContext context) {
+      final cs = Theme.of(context).colorScheme;
+      final a11y = context.watch<AccessibilityController>().settings;
 
-    final bg = selected ? cs.onPrimary : Colors.transparent;
-    final fg = selected ? cs.primary : cs.onPrimary;
+      final bool useBlackNavAccent = a11y.darkMode && !a11y.highContrast;
 
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
-      child: Icon(icon, color: fg),
-    );
+      final bg = selected
+          ? (useBlackNavAccent ? Colors.black : cs.onPrimary)
+          : Colors.transparent;
+
+      final fg = selected
+          ? (useBlackNavAccent ? Colors.white : cs.primary)
+          : (useBlackNavAccent ? Colors.black : cs.onPrimary);
+
+      return Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: bg,
+        ),
+        child: Icon(icon, color: fg),
+      );
+    }
   }
-}
 
 class PathwayNavShell extends StatefulWidget {
   const PathwayNavShell({super.key});
@@ -103,11 +114,13 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
     final a11y = context.watch<AccessibilityController>();
     final highContrast = a11y.settings.highContrast;
 
-    // If highContrast == true, navBg = Black. Otherwise, it is onPrimary
+    final darkMode = a11y.settings.darkMode;
     final navBg = highContrast ? Colors.black : cs.primary;
-    // If highContrast == true, navFg = White. Otherwise, it is onPrimary
-    final navFg = highContrast ? Colors.white : cs.onPrimary;
-
+    final navFg = highContrast
+        ? Colors.white
+        : darkMode
+            ? Colors.black
+            : cs.onPrimary;
     return Scaffold(
       body: _widgetOptions.elementAt(_selectedIndex),
 
@@ -147,14 +160,14 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
             showSelectedLabels: true,
             showUnselectedLabels: true,
 
-            items: const <BottomNavigationBarItem>[
+            items: <BottomNavigationBarItem>[
               BottomNavigationBarItem(
                 // Home icon
-                icon: const SelectedNavIcon(
+                icon: SelectedNavIcon(
                   icon: Icons.home_rounded,
                   selected: false,
                 ),
-                activeIcon: const SelectedNavIcon(
+                activeIcon: SelectedNavIcon(
                   icon: Icons.home_rounded,
                   selected: true,
                 ),
@@ -162,11 +175,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
               ),
               // Map icon
               BottomNavigationBarItem(
-                icon: const SelectedNavIcon(
+                icon: SelectedNavIcon(
                   icon: Icons.map_rounded,
                   selected: false,
                 ),
-                activeIcon: const SelectedNavIcon(
+                activeIcon: SelectedNavIcon(
                   icon: Icons.map_rounded,
                   selected: true,
                 ),
@@ -174,11 +187,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
               ),
               // Badges icon
               BottomNavigationBarItem(
-                icon: const SelectedNavIcon(
+                icon: SelectedNavIcon(
                   icon: Icons.star_rounded,
                   selected: false,
                 ),
-                activeIcon: const SelectedNavIcon(
+                activeIcon: SelectedNavIcon(
                   icon: Icons.star_rounded,
                   selected: true,
                 ),
@@ -186,11 +199,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
               ),
               // Message icon
               BottomNavigationBarItem(
-                icon: const SelectedNavIcon(
+                icon: SelectedNavIcon(
                   icon: Icons.message,
                   selected: false,
                 ),
-                activeIcon: const SelectedNavIcon(
+                activeIcon: SelectedNavIcon(
                   icon: Icons.message,
                   selected: true,
                 ),
@@ -198,11 +211,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
               ),
 
               BottomNavigationBarItem(
-                icon: const SelectedNavIcon(
+                icon: SelectedNavIcon(
                   icon: Icons.person_rounded,
                   selected: false,
                 ),
-                activeIcon: const SelectedNavIcon(
+                activeIcon: SelectedNavIcon(
                   icon: Icons.person_rounded,
                   selected: true,
                 ),

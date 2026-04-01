@@ -97,6 +97,7 @@ class _TopBanner extends StatefulWidget {
   State<_TopBanner> createState() => _TopBannerState();
 }
 
+
 class _TopBannerState extends State<_TopBanner>
   with SingleTickerProviderStateMixin {
     late final AnimationController _controller;

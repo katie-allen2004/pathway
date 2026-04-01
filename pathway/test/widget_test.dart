@@ -7,7 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pathway/core/utils/accessibility_controller.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:pathway/main.dart';
 
 void main() {

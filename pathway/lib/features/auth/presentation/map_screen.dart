@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter_map/flutter_map.dart' as fmap;
+import 'package:latlong2/latlong.dart' as latlng;
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:geolocator/geolocator.dart';
+
 import '/features/venues/data/venue_repository.dart';
 import '/features/venues/data/venue_model.dart';
 import '/features/venues/presentation/widgets/venue_card.dart';
 import '/core/services/storage_service.dart';
 import '/features/profile/presentation/pages/profile_page.dart'; 
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:intl/intl.dart';
 import '/core/services/geo_code.dart'; 
-import 'package:flutter_map/flutter_map.dart' as fmap;
-import 'package:latlong2/latlong.dart' as latlng;
+import '/features/venues/presentation/pages/venue_detail_page.dart'; 
+import 'package:pathway/core/services/accessibility_controller.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -24,11 +28,12 @@ class _MapScreenState extends State<MapScreen> {
   final _supabase = Supabase.instance.client;
   final _repo = VenueRepository();
   final StorageService _storageService = StorageService();
-
+  final GeocodingService _geocodingService = GeocodingService();
   Set<Marker> _markers = {};
   LatLng? _tempNewVenueLatLng;
-
+  latlng.LatLng? _currentPosition;
   final fmap.MapController _fmapController = fmap.MapController();
+  VenueModel? _selectedVenue;
 
   Map<String, Map<String, String>> _tempOperatingHours = {
     "mon": {"open": "09:00", "close": "17:00"},
@@ -60,6 +65,35 @@ class _MapScreenState extends State<MapScreen> {
     _searchController.dispose();
     super.dispose();
   }
+  Future<void> _determinePosition() async {
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Location services are disabled.")),
+      );
+    }
+    return;
+  }
+
+  // handle perrmissions
+  LocationPermission permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) return;
+  }
+
+  // Get current position
+  final position = await Geolocator.getCurrentPosition();
+  
+  setState(() {
+    _currentPosition = latlng.LatLng(position.latitude, position.longitude);
+  });
+
+  // users spot 
+  _fmapController.move(_currentPosition!, 15.0);
+}
+
   Future<void> _selectTime(BuildContext context, String day, String type, StateSetter setDialogState) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
@@ -353,14 +387,41 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextField(
-  controller: addressController,
-  decoration: const InputDecoration(
-    labelText: "Full Address",
-    prefixIcon: Icon(Icons.location_on),
-    hintText: "e.g. 123 Main St, Long Beach, CA",
+                TypeAheadField<Map<String, dynamic>>(
+    debounceDuration: const Duration(milliseconds: 500),
+    onSelected: (suggestion) {
+      addressController.text = suggestion['display_name'] ?? '';
+      latController.text = suggestion['lat'].toString();
+      lngController.text = suggestion['lon'].toString();
+      
+      final double lat = double.tryParse(suggestion['lat'].toString()) ?? 0.0;
+      final double lon = double.tryParse(suggestion['lon'].toString()) ?? 0.0;
+      
+      // center map on location 
+      _fmapController.move(latlng.LatLng(lat, lon), 15.0);
+      setDialogState(() {}); 
+    },
+    suggestionsCallback: (pattern) async {
+      return await _geocodingService.getAddressSuggestions(pattern);
+    },
+    itemBuilder: (context, suggestion) {
+      return ListTile(
+        leading: const Icon(Icons.location_on, color: Colors.deepPurple),
+        title: Text(suggestion['display_name'] ?? 'Unknown Address'),
+      );
+    },
+    builder: (context, controller, focusNode) {
+      return TextField(
+        controller: controller,
+        focusNode: focusNode,
+        decoration: const InputDecoration(
+          labelText: "Full Address",
+          prefixIcon: Icon(Icons.location_on),
+          hintText: "Start typing an address...",
+        ),
+      );
+    },
   ),
-),
                 const SizedBox(height: 10),
                 TextField(
                   controller: nameController,
@@ -665,16 +726,32 @@ Row(
     );
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final a11y = context.watch<AccessibilityController>().settings;
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: a11y.highContrast ? Colors.black : cs.primary,
-        onPressed: () => _showAddVenueDialog(),
-        child: Icon(Icons.add, color: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.onPrimary),
+      
+      floatingActionButton: AnimatedPadding(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.only(bottom: _selectedVenue != null ? 140 : 0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: "locateBtn",
+              backgroundColor: Colors.white,
+              onPressed: _determinePosition,
+              child: const Icon(Icons.gps_fixed, color: Colors.deepPurple),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton(
+              heroTag: "addBtn",
+              backgroundColor: Colors.deepPurple,
+              onPressed: () => _showAddVenueDialog(),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ],
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -682,9 +759,10 @@ Row(
               children: [
 fmap.FlutterMap(
   mapController: _fmapController, 
-  options: const fmap.MapOptions(
+  options: fmap.MapOptions(
     initialCenter: latlng.LatLng(33.7701, -118.1937),
     initialZoom: 12,
+    onTap: (_, __) => setState(() => _selectedVenue = null), //hide card on tap 
   ),
   children: [
     fmap.TileLayer(
@@ -692,26 +770,37 @@ fmap.FlutterMap(
       userAgentPackageName: 'com.pathway.app',
     ),
     fmap.MarkerLayer(
-      markers: _filteredVenues.map((v) {
-        return fmap.Marker(
-          point: latlng.LatLng(v.latitude ?? 0, v.longitude ?? 0),
-          width: 40,
-          height: 40,
-          child: GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(v.name)),
-              );
-            },
-            child: Icon(
-              Icons.location_on, 
-              color: a11y.highContrast ? Colors.black : cs.primary, 
-              size: a11y.textScale >= 1.2 ? 46 : 40,
-            ),
-          ),
-        );
-      }).toList(),
-    ),
+  markers: [
+    // current position 
+    if (_currentPosition != null)
+      fmap.Marker(
+        point: _currentPosition!,
+        width: 40,
+        height: 40,
+        child: const Icon(
+          Icons.my_location,
+          color: Colors.blueAccent,
+          size: 30,
+        ),
+      ),
+
+    ..._filteredVenues.map((v) {
+      return fmap.Marker(
+        point: latlng.LatLng(v.latitude ?? 0, v.longitude ?? 0),
+        width: 50, 
+        height: 50,
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedVenue = v; 
+  });
+},
+          child: _getMarkerIcon(v), 
+        ),
+      );
+    }).toList(),
+  ],
+    )
   ],
 ),
                 SafeArea(
@@ -731,17 +820,14 @@ fmap.FlutterMap(
                           },
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: cs.surface,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
                               shape: BoxShape.circle,
-                              boxShadow: a11y.highContrast
-                                  ? []
-                                  : const [BoxShadow(color: Colors.black12, blurRadius: 8)],
-                              border: a11y.highContrast ? Border.all(color: Colors.black, width: 2) : null,
+                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.person,
-                              color: a11y.highContrast ? Colors.black : cs.primary,
+                              color: Colors.deepPurple,
                             ),
                           ),
                         ),
@@ -750,26 +836,21 @@ fmap.FlutterMap(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(
-                              color: cs.surface,
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(30),
-                              boxShadow: a11y.highContrast
-                                  ? []
-                                  : const [BoxShadow(color: Colors.black12, blurRadius: 8)],
-                              border: a11y.highContrast ? Border.all(color: Colors.black, width: 2) : null,
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 8),
+                              ],
                             ),
                             child: TextField(
                               controller: _searchController,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 hintText: "Search venue...",
-                                hintStyle: theme.textTheme.bodyMedium,
                                 border: InputBorder.none,
                                 icon: Icon(
                                   Icons.search,
-                                  color: a11y.highContrast ? Colors.black : cs.primary,
+                                  color: Colors.deepPurple,
                                 ),
-                              ),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: a11y.boldText ? FontWeight.w700 : null,
                               ),
                             ),
                           ),
@@ -779,13 +860,13 @@ fmap.FlutterMap(
                           onTap: _showDiscoveryTray,
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: a11y.highContrast ? Colors.black : cs.primary,
+                            decoration: const BoxDecoration(
+                              color: Colors.deepPurple,
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.explore,
-                              color: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.onPrimary,
+                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -793,8 +874,145 @@ fmap.FlutterMap(
                     ),
                   ),
                 ),
+                if (_selectedVenue != null)
+                  Positioned(
+                    bottom: 30,
+                    left: 20,
+                    right: 20,
+                    child: Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                            if (_selectedVenue != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VenueDetailPage(
+                                    venueId: _selectedVenue!.id, 
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Row(
+                                children: [
+                                  // venue 
+                                  Container(
+                                    width: 90,
+                                    height: 90,
+                                    decoration: BoxDecoration(
+                                      color: Colors.deepPurple.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: _selectedVenue!.imagePath != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(15),
+                                            child: Image.network(
+                                              _storageService.getPublicUrl(_selectedVenue!.imagePath!),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => 
+                                                  const Icon(Icons.image_not_supported, color: Colors.grey),
+                                            ),
+                                          )
+                                        : const Icon(Icons.storefront, color: Colors.deepPurple, size: 40),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  //venue details 
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          _selectedVenue!.name,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          _selectedVenue!.addressLine1 ?? "No address listed",
+                                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        // accessbility tags summary 
+                                        Row(
+                                          children: [
+                                            Icon(Icons.accessible, size: 16, color: Colors.green[700]),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              "${_selectedVenue!.tags.length} Features",
+                                              style: TextStyle(
+                                                color: Colors.green[700],
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
     );
   }
+
+Widget _getMarkerIcon(VenueModel venue) {
+  final specialTags = [
+    'wheelchair accessible',
+    'accessible restroom',
+    'accessible parking'
+  ];
+  
+  final vTags = venue.tags.map((t) => t.toLowerCase().trim()).toList();
+
+  int score = 0;
+  for (var tag in specialTags) {
+    if (vTags.contains(tag)) {
+      score++;
+    }
+  }
+  if (score >= 3) {
+    return const Icon(Icons.location_on, color: Color(0xFFFFD700), size: 45); // Gold star, but we can probably change this 
+  } 
+  if (score == 2) {
+    return const Icon(Icons.location_on, color: Colors.blueAccent, size: 42); 
+  } 
+  if (score == 1) {
+    return const Icon(Icons.location_on, color: Colors.redAccent, size: 40); 
+  } 
+  return Icon(
+    Icons.location_on_outlined, 
+    color: Colors.grey.withOpacity(0.5), 
+    size: 35,
+  );
+}
 }

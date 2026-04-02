@@ -725,11 +725,13 @@ Row(
       },
     );
   }
-
 @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return Scaffold(
-      
       floatingActionButton: AnimatedPadding(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -739,16 +741,18 @@ Row(
           children: [
             FloatingActionButton(
               heroTag: "locateBtn",
-              backgroundColor: Colors.white,
+              backgroundColor: a11y.highContrast ? Colors.black : Colors.white,
               onPressed: _determinePosition,
-              child: const Icon(Icons.gps_fixed, color: Colors.deepPurple),
+              child: Icon(Icons.gps_fixed, 
+                color: a11y.highContrast ? Colors.white : Colors.deepPurple),
             ),
             const SizedBox(height: 10),
             FloatingActionButton(
               heroTag: "addBtn",
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: a11y.highContrast ? Colors.black : cs.primary,
               onPressed: () => _showAddVenueDialog(),
-              child: const Icon(Icons.add, color: Colors.white),
+              child: Icon(Icons.add, 
+                color: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.onPrimary),
             ),
           ],
         ),
@@ -757,52 +761,50 @@ Row(
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
-fmap.FlutterMap(
-  mapController: _fmapController, 
-  options: fmap.MapOptions(
-    initialCenter: latlng.LatLng(33.7701, -118.1937),
-    initialZoom: 12,
-    onTap: (_, __) => setState(() => _selectedVenue = null), //hide card on tap 
-  ),
-  children: [
-    fmap.TileLayer(
-      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      userAgentPackageName: 'com.pathway.app',
-    ),
-    fmap.MarkerLayer(
-  markers: [
-    // current position 
-    if (_currentPosition != null)
-      fmap.Marker(
-        point: _currentPosition!,
-        width: 40,
-        height: 40,
-        child: const Icon(
-          Icons.my_location,
-          color: Colors.blueAccent,
-          size: 30,
-        ),
-      ),
-
-    ..._filteredVenues.map((v) {
-      return fmap.Marker(
-        point: latlng.LatLng(v.latitude ?? 0, v.longitude ?? 0),
-        width: 50, 
-        height: 50,
-        child: GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedVenue = v; 
-  });
-},
-          child: _getMarkerIcon(v), 
-        ),
-      );
-    }).toList(),
-  ],
-    )
-  ],
-),
+                fmap.FlutterMap(
+                  mapController: _fmapController,
+                  options: fmap.MapOptions(
+                    initialCenter: latlng.LatLng(33.7701, -118.1937),
+                    initialZoom: 12,
+                    // deselect maker when tapping on map. 
+                    onTap: (_, __) => setState(() => _selectedVenue = null),
+                  ),
+                  children: [
+                    fmap.TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.pathway.app',
+                    ),
+                    fmap.MarkerLayer(
+                      markers: [
+                        // current pos 
+                        if (_currentPosition != null)
+                          fmap.Marker(
+                            point: _currentPosition!,
+                            width: 40,
+                            height: 40,
+                            child: const Icon(
+                              Icons.my_location,
+                              color: Colors.blueAccent,
+                              size: 30,
+                            ),
+                          ),
+                        // Merged filtered venues with your custom _getMarkerIcon logic
+                        ..._filteredVenues.map((v) {
+                          return fmap.Marker(
+                            point: latlng.LatLng(v.latitude ?? 0, v.longitude ?? 0),
+                            width: 50,
+                            height: 50,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedVenue = v),
+                              child: _getMarkerIcon(v),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ],
+                ),
+                // head structure 
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -813,21 +815,22 @@ fmap.FlutterMap(
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => const ProfilePage(),
-                              ),
+                              MaterialPageRoute(builder: (context) => const ProfilePage()),
                             );
                           },
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
+                            decoration: BoxDecoration(
+                              color: cs.surface,
                               shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              boxShadow: a11y.highContrast
+                                  ? []
+                                  : const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              border: a11y.highContrast ? Border.all(color: Colors.black, width: 2) : null,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.person,
-                              color: Colors.deepPurple,
+                              color: a11y.highContrast ? Colors.black : cs.primary,
                             ),
                           ),
                         ),
@@ -836,21 +839,26 @@ fmap.FlutterMap(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cs.surface,
                               borderRadius: BorderRadius.circular(30),
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black12, blurRadius: 8),
-                              ],
+                              boxShadow: a11y.highContrast
+                                  ? []
+                                  : const [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                              border: a11y.highContrast ? Border.all(color: Colors.black, width: 2) : null,
                             ),
                             child: TextField(
                               controller: _searchController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Search venue...",
+                                hintStyle: theme.textTheme.bodyMedium,
                                 border: InputBorder.none,
                                 icon: Icon(
                                   Icons.search,
-                                  color: Colors.deepPurple,
+                                  color: a11y.highContrast ? Colors.black : cs.primary,
                                 ),
+                              ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: a11y.boldText ? FontWeight.w700 : null,
                               ),
                             ),
                           ),
@@ -860,13 +868,13 @@ fmap.FlutterMap(
                           onTap: _showDiscoveryTray,
                           child: Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Colors.deepPurple,
+                            decoration: BoxDecoration(
+                              color: a11y.highContrast ? Colors.black : cs.primary,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.explore,
-                              color: Colors.white,
+                              color: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.onPrimary,
                             ),
                           ),
                         ),
@@ -874,16 +882,16 @@ fmap.FlutterMap(
                     ),
                   ),
                 ),
+                // mini card 
                 if (_selectedVenue != null)
                   Positioned(
-                    bottom: 30,
-                    left: 20,
-                    right: 20,
+                    bottom: 30, left: 20, right: 20,
                     child: Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: a11y.highContrast ? Colors.black : Colors.white,
                         borderRadius: BorderRadius.circular(20),
+                        border: a11y.highContrast ? Border.all(color: Colors.white, width: 2) : null,
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.15),
@@ -898,25 +906,19 @@ fmap.FlutterMap(
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () {
-                            if (_selectedVenue != null) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => VenueDetailPage(
-                                    venueId: _selectedVenue!.id, 
-                                  ),
+                                  builder: (context) => VenueDetailPage(venueId: _selectedVenue!.id),
                                 ),
                               );
-                            }
-                          },
+                            },
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),
                               child: Row(
                                 children: [
-                                  // venue 
                                   Container(
-                                    width: 90,
-                                    height: 90,
+                                    width: 90, height: 90,
                                     decoration: BoxDecoration(
                                       color: Colors.deepPurple.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(15),
@@ -927,14 +929,13 @@ fmap.FlutterMap(
                                             child: Image.network(
                                               _storageService.getPublicUrl(_selectedVenue!.imagePath!),
                                               fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => 
+                                              errorBuilder: (context, error, stackTrace) =>
                                                   const Icon(Icons.image_not_supported, color: Colors.grey),
                                             ),
                                           )
                                         : const Icon(Icons.storefront, color: Colors.deepPurple, size: 40),
                                   ),
                                   const SizedBox(width: 16),
-                                  //venue details 
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -953,7 +954,6 @@ fmap.FlutterMap(
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 8),
-                                        // accessbility tags summary 
                                         Row(
                                           children: [
                                             Icon(Icons.accessible, size: 16, color: Colors.green[700]),
@@ -985,34 +985,24 @@ fmap.FlutterMap(
     );
   }
 
-Widget _getMarkerIcon(VenueModel venue) {
-  final specialTags = [
-    'wheelchair accessible',
-    'accessible restroom',
-    'accessible parking'
-  ];
-  
-  final vTags = venue.tags.map((t) => t.toLowerCase().trim()).toList();
+  // scoring helper 
+  Widget _getMarkerIcon(VenueModel venue) {
+    final specialTags = [
+      'wheelchair accessible',
+      'accessible restroom',
+      'accessible parking'
+    ];
+    final vTags = venue.tags.map((t) => t.toLowerCase().trim()).toList();
+    int score = specialTags.where((tag) => vTags.contains(tag)).length;
 
-  int score = 0;
-  for (var tag in specialTags) {
-    if (vTags.contains(tag)) {
-      score++;
-    }
+    if (score >= 3) return const Icon(Icons.location_on, color: Color(0xFFFFD700), size: 45);
+    if (score == 2) return const Icon(Icons.location_on, color: Colors.blueAccent, size: 42);
+    if (score == 1) return const Icon(Icons.location_on, color: Colors.redAccent, size: 40);
+
+    return Icon(
+      Icons.location_on_outlined,
+      color: Colors.grey.withOpacity(0.5),
+      size: 35,
+    );
   }
-  if (score >= 3) {
-    return const Icon(Icons.location_on, color: Color(0xFFFFD700), size: 45); // Gold star, but we can probably change this 
-  } 
-  if (score == 2) {
-    return const Icon(Icons.location_on, color: Colors.blueAccent, size: 42); 
-  } 
-  if (score == 1) {
-    return const Icon(Icons.location_on, color: Colors.redAccent, size: 40); 
-  } 
-  return Icon(
-    Icons.location_on_outlined, 
-    color: Colors.grey.withOpacity(0.5), 
-    size: 35,
-  );
-}
 }

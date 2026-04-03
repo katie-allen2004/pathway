@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
+import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog.dart';
 
 class VenueDetailPage extends StatefulWidget {
   final int venueId;
@@ -29,6 +30,22 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
   void _loadData() {
     _venueFuture = _repo.fetchVenueById(widget.venueId);
+  }
+
+  Future<void> _showSuggestEditDialog() async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          SuggestEditDialog(venueId: widget.venueId, repository: _repo),
+    );
+
+    if (!mounted) return;
+
+    if (submitted == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Suggestion submitted for review.')),
+      );
+    }
   }
 
   Future<void> _refresh() async {
@@ -237,7 +254,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       },
       body: TabBarView(
         children: [
-          _OverviewTab(venue: venue),
+          _OverviewTab(venue: venue, onSuggestEdit: _showSuggestEditDialog),
           _ReviewsTab(venue: venue, onReviewAdded: _refresh),
           _PostsTab(venue: venue),
         ],
@@ -250,7 +267,9 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
 class _OverviewTab extends StatelessWidget {
   final VenueModel venue;
-  const _OverviewTab({required this.venue});
+  final VoidCallback onSuggestEdit;
+
+  const _OverviewTab({required this.venue, required this.onSuggestEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -277,9 +296,30 @@ class _OverviewTab extends StatelessWidget {
                   ),
           ],
         ),
-        const SizedBox(height: 16),
-        _AccessibilityScoreCard(venue: venue),
 
+        const SizedBox(height: 14),
+
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: onSuggestEdit,
+              icon: const Icon(Icons.edit_note_rounded, size: 18),
+              label: const Text('Suggest Edit'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        _AccessibilityScoreCard(venue: venue),
         const SizedBox(height: 14),
 
         _Card(
@@ -303,8 +343,6 @@ class _OverviewTab extends StatelessWidget {
             ),
           ),
         ),
-
-        _AccessibilityScoreCard(venue: venue),
 
         const SizedBox(height: 14),
         _Card(

@@ -383,7 +383,7 @@ class VenueRepository {
       'is_visible': true,
     });
 
-    // Award badges (non-blocking: we try, but don’t fail the review if badge eval fails)
+    // Award badges
     try {
       await _client.rpc('evaluate_user_badges', params: {'p_user_id': user.id});
     } catch (e) {

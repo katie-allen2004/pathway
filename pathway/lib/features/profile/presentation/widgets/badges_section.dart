@@ -253,6 +253,8 @@ class _BadgeCard extends StatelessWidget {
         return "Your reviews are building real momentum in the community.";
       case 'ten_reviews':
         return "You're becoming a trusted voice in Pathway.";
+      case 'community_helper':
+        return "Your contributions are helping others in the community.";
       default:
         return "You've unlocked another milestone in Pathway.";
     }
@@ -264,6 +266,8 @@ class _BadgeCard extends StatelessWidget {
         return "You're building momentum with your reviews.";
       case 'ten_reviews':
         return "Keep contributing to reach this milestone.";
+      case 'community_helper':
+        return "Write 15 reviews to unlock this badge.";
       default:
         return "Keep contributing to unlock this milestone.";
     }

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'venue_model.dart';
 import 'review_model.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
+import 'venue_suggestion_model.dart';
 import 'package:pathway/features/gamification/data/badge_tab_data.dart';
 
 class VenueRepository {
@@ -382,7 +383,7 @@ class VenueRepository {
       'is_visible': true,
     });
 
-    // Award badges (non-blocking: we try, but don’t fail the review if badge eval fails)
+    // Award badges
     try {
       await _client.rpc('evaluate_user_badges', params: {'p_user_id': user.id});
     } catch (e) {
@@ -495,6 +496,70 @@ class VenueRepository {
   // ---------------------------
   // Moderation Logic
   // ---------------------------
+  Future<void> submitVenueSuggestion({
+    required int venueId,
+    required String fieldName,
+    required String proposedValue,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('User must be logged in to suggest edits.');
+    }
+
+    final cleanedValue = proposedValue.trim();
+    if (cleanedValue.isEmpty) {
+      throw Exception('Suggested value cannot be empty.');
+    }
+
+    await _client.schema('pathway').from('venue_suggestions').insert({
+      'venue_id': venueId,
+      'user_id': userId,
+      'field_name': fieldName,
+      'proposed_value': cleanedValue,
+      'status': 'pending',
+    });
+  }
+
+  Future<List<VenueSuggestionModel>> fetchPendingVenueSuggestions() async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_suggestions')
+          .select()
+          .eq('status', 'pending')
+          .order('created_at', ascending: true);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(VenueSuggestionModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error in fetchPendingVenueSuggestions: $e');
+      return [];
+    }
+  }
+
+  Future<void> approveVenueSuggestion(String suggestionId) async {
+    try {
+      await _client.rpc(
+        'approve_venue_suggestion',
+        params: {'p_suggestion_id': suggestionId},
+      );
+    } catch (e) {
+      debugPrint('Error in approveVenueSuggestion: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> rejectVenueSuggestion(String suggestionId) async {
+    try {
+      await _client.rpc(
+        'reject_venue_suggestion',
+        params: {'p_suggestion_id': suggestionId},
+      );
+    } catch (e) {
+      debugPrint('Error in rejectVenueSuggestion: $e');
+      rethrow;
+    }
+  }
 
   Future<void> reportContent({
     required String targetType,

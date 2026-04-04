@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/venue_model.dart';
 import '../../data/venue_repository.dart';
 import '../../data/review_model.dart';
+import '../../data/venue_overview_generator.dart';
 import '../../../../features/reviews/data/review_moderator.dart';
 
 class VenueDetailPage extends StatefulWidget {
@@ -268,6 +269,28 @@ class _OverviewTabState extends State<_OverviewTab> {
 
   VenueModel get venue => widget.venue;
 
+  Future<String>? _overviewFuture;
+
+  void _refreshOverview() {
+    _overviewFuture = _repo
+        .fetchVenueReviews(widget.venue.id)
+        .then((reviews) => VenueOverviewGenerator.generateOverview(reviews));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshOverview();
+  }
+
+  @override
+  void didUpdateWidget(_OverviewTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.venue.totalReviews != oldWidget.venue.totalReviews) {
+      setState(_refreshOverview);
+    }
+  }
+
   Future<void> _uploadVenuePhoto() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -348,6 +371,36 @@ class _OverviewTabState extends State<_OverviewTab> {
         ),
         const SizedBox(height: 16),
         _AccessibilityScoreCard(venue: venue),
+
+        const SizedBox(height: 14),
+
+        _Card(
+          title: 'AI Overview',
+          child: FutureBuilder<String>(
+            future: _overviewFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 48,
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.auto_awesome, size: 18, color: Colors.deepPurple),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      snapshot.data ?? 'Unable to generate overview.',
+                      style: TextStyle(height: 1.6, color: Colors.grey[800], fontSize: 15),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
 
         const SizedBox(height: 14),
 

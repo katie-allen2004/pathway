@@ -26,9 +26,10 @@ class _SuggestEditDialogState extends State<SuggestEditDialog> {
     'venue_name': 'Venue Name',
     'address': 'Address',
     'description': 'Description',
-    'phone_number': 'Phone Number',
-    'website_url': 'Website URL',
-    'accessibility_notes': 'Accessibility Notes',
+    'city': 'City',
+    'state': 'State',
+    'category': 'Category',
+    'operating_hours': 'Operating Hours',
   };
 
   @override
@@ -57,9 +58,7 @@ class _SuggestEditDialogState extends State<SuggestEditDialog> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to submit suggestion: $e'),
-        ),
+        SnackBar(content: Text('Failed to submit suggestion: $e')),
       );
     } finally {
       if (mounted) {
@@ -109,7 +108,8 @@ class _SuggestEditDialogState extends State<SuggestEditDialog> {
               TextFormField(
                 controller: _valueController,
                 enabled: !_isSubmitting,
-                maxLines: _selectedField == 'description' ||
+                maxLines:
+                    _selectedField == 'description' ||
                         _selectedField == 'accessibility_notes'
                     ? 4
                     : 1,

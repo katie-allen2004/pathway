@@ -5,6 +5,7 @@ import 'review_model.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
 import 'venue_suggestion_model.dart';
 import 'package:pathway/features/gamification/data/badge_tab_data.dart';
+import 'venue_edit_history_model.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -560,6 +561,23 @@ class VenueRepository {
       rethrow;
     }
   }
+
+  Future<List<VenueEditHistoryModel>> fetchVenueEditHistory(int venueId) async {
+  try {
+    final res = await _client
+        .schema('pathway')
+        .from('venue_edit_history')
+        .select()
+        .eq('venue_id', venueId)
+        .order('created_at', ascending: false);
+
+    final rows = (res as List).cast<Map<String, dynamic>>();
+    return rows.map(VenueEditHistoryModel.fromMap).toList();
+  } catch (e) {
+    debugPrint('Error fetching edit history: $e');
+    return [];
+  }
+}
 
   Future<void> reportContent({
     required String targetType,

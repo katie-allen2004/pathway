@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
 import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog.dart';
+import 'package:pathway/features/venues/data/venue_edit_history_model.dart';
 
 class ReviewShareHelper {
   // TODO: replace with your real production domain
@@ -27,7 +28,8 @@ class ReviewShareHelper {
     final rating = review.rating;
     final url = reviewUrl(review);
 
-    final intro = 'Check out this $rating-star review for $venueName on Pathway';
+    final intro =
+        'Check out this $rating-star review for $venueName on Pathway';
     if (body.isEmpty) {
       return '$intro\n\n$url';
     }
@@ -43,9 +45,9 @@ class ReviewShareHelper {
     await Clipboard.setData(ClipboardData(text: url));
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review link copied.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Review link copied.')));
     }
   }
 
@@ -58,16 +60,13 @@ class ReviewShareHelper {
 
     try {
       await SharePlus.instance.share(
-        ShareParams(
-          text: text,
-          subject: 'Pathway review for $venueName',
-        ),
+        ShareParams(text: text, subject: 'Pathway review for $venueName'),
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Share failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Share failed: $e')));
       }
     }
   }
@@ -79,27 +78,19 @@ class ReviewShareHelper {
   }) async {
     final url = reviewUrl(review);
 
-    final tweetText =
-        'Check out this review for $venueName on Pathway';
+    final tweetText = 'Check out this review for $venueName on Pathway';
 
-    final xUri = Uri.https(
-      'twitter.com',
-      '/intent/tweet',
-      {
-        'text': tweetText,
-        'url': url,
-      },
-    );
+    final xUri = Uri.https('twitter.com', '/intent/tweet', {
+      'text': tweetText,
+      'url': url,
+    });
 
-    final ok = await launchUrl(
-      xUri,
-      mode: LaunchMode.externalApplication,
-    );
+    final ok = await launchUrl(xUri, mode: LaunchMode.externalApplication);
 
     if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open X.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open X.')));
     }
   }
 
@@ -175,11 +166,7 @@ class ReviewShareHelper {
                 title: const Text('Share to X'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await shareToX(
-                    context,
-                    review: review,
-                    venueName: venueName,
-                  );
+                  await shareToX(context, review: review, venueName: venueName);
                 },
               ),
               ListTile(
@@ -188,10 +175,7 @@ class ReviewShareHelper {
                 subtitle: const Text('Copies the link so you can paste it'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await openInstagramWithCopiedLink(
-                    context,
-                    review: review,
-                  );
+                  await openInstagramWithCopiedLink(context, review: review);
                 },
               ),
             ],
@@ -263,7 +247,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final a11y = context.watch<AccessibilityController>().settings;
-    
+
     return DefaultTabController(
       length: 3,
       child: FutureBuilder<VenueModel?>(
@@ -336,7 +320,6 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         ? 'No address provided'
         : addressParts.join(', ');
 
-
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final a11y = context.watch<AccessibilityController>().settings;
@@ -345,10 +328,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         return [
           SliverAppBar(
             leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back,
-                color: Colors.white,
-              ),
+              icon: Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () => Navigator.pop(context),
             ),
             backgroundColor: cs.surface,
@@ -368,7 +348,10 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                 : null,
             actions: [
               IconButton(
-                icon: Icon(Icons.refresh, color: innerBoxIsScrolled ? cs.onSurface : Colors.white),
+                icon: Icon(
+                  Icons.refresh,
+                  color: innerBoxIsScrolled ? cs.onSurface : Colors.white,
+                ),
                 onPressed: _refresh,
               ),
             ],
@@ -498,10 +481,12 @@ class _DetailTabs extends StatelessWidget {
 
             final bg = selected
                 ? (a11y.highContrast ? Colors.black : cs.primary)
-                : (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white);
+                : (a11y.darkMode
+                      ? theme.scaffoldBackgroundColor
+                      : Colors.white);
 
             final fg = selected
-                ? (a11y.darkMode ?  Colors.black : Colors.white)
+                ? (a11y.darkMode ? Colors.black : Colors.white)
                 : (a11y.highContrast ? Colors.black : cs.primary);
 
             // Normal:
@@ -583,17 +568,24 @@ class _OverviewTab extends StatelessWidget {
         Row(
           children: [
             _Badge(
-              text: venue.category ?? 'Venue', 
-              color: (a11y.highContrast ? Colors.black : cs.primary)),
+              text: venue.category ?? 'Venue',
+              color: (a11y.highContrast ? Colors.black : cs.primary),
+            ),
             const SizedBox(width: 10),
             venue.totalReviews == 0
-                ? _Badge(text: 'NEW • NO REVIEWS', 
-                        color: (a11y.highContrast ? Colors.black : Colors.grey[700]!))
+                ? _Badge(
+                    text: 'NEW • NO REVIEWS',
+                    color: (a11y.highContrast
+                        ? Colors.black
+                        : Colors.grey[700]!),
+                  )
                 : _Badge(
                     text:
                         '${venue.averageRating.toStringAsFixed(1)} ★ • ${venue.totalReviews} review${venue.totalReviews == 1 ? '' : 's'}',
                     icon: Icons.star_rounded,
-                    color: (a11y.highContrast ? Colors.black : Colors.amber[800]!),
+                    color: (a11y.highContrast
+                        ? Colors.black
+                        : Colors.amber[800]!),
                   ),
           ],
         ),
@@ -682,7 +674,8 @@ class _OverviewTab extends StatelessWidget {
                 : venue.description!,
             style: TextStyle(
               height: 1.6,
-              color: (a11y.darkMode ? Colors.white30 : Colors.black87).withValues(alpha: 0.9),
+              color: (a11y.darkMode ? Colors.white30 : Colors.black87)
+                  .withValues(alpha: 0.9),
               fontSize: 15,
             ),
           ),
@@ -764,19 +757,99 @@ class _OverviewTab extends StatelessWidget {
                         ? () => _openMapsForVenue(context, venue)
                         : null,
                     icon: const Icon(Icons.map_outlined, size: 18),
-                    label: Text('Open in Maps', style: TextStyle(color: (a11y.darkMode ? Colors.white : cs.primary))),
-
+                    label: Text(
+                      'Open in Maps',
+                      style: TextStyle(
+                        color: (a11y.darkMode ? Colors.white : cs.primary),
+                      ),
+                    ),
                   ),
                   OutlinedButton.icon(
                     onPressed: (hasCoords || hasAddress)
                         ? () => _copyVenueLocation(context, venue)
                         : null,
                     icon: const Icon(Icons.copy, size: 18),
-                    label: Text('Copy', style: TextStyle(color: (a11y.darkMode ? Colors.white : cs.primary))),
+                    label: Text(
+                      'Copy',
+                      style: TextStyle(
+                        color: (a11y.darkMode ? Colors.white : cs.primary),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        _Card(
+          title: 'Edit History',
+          child: FutureBuilder<List<VenueEditHistoryModel>>(
+            future: VenueRepository().fetchVenueEditHistory(venue.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              final history = snapshot.data ?? [];
+
+              if (history.isEmpty) {
+                return const Text(
+                  'No edit history yet.',
+                  style: TextStyle(color: Colors.grey),
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: history.map((h) {
+                  final oldText =
+                      (h.oldValue == null || h.oldValue!.trim().isEmpty)
+                      ? '—'
+                      : h.oldValue!;
+                  final newText =
+                      (h.newValue == null || h.newValue!.trim().isEmpty)
+                      ? '—'
+                      : h.newValue!;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          h.fieldName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$oldText → $newText',
+                          style: TextStyle(color: Colors.grey[800]),
+                        ),
+                        if (h.createdAt != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${h.createdAt!.month}/${h.createdAt!.day}/${h.createdAt!.year}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                        const Divider(height: 18),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
           ),
         ),
       ],
@@ -1025,17 +1098,17 @@ class _ReviewsTabState extends State<_ReviewsTab> {
 
                   // Sort dropdown
                   Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: a11y.highContrast ? Colors.white : cs.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: a11y.highContrast
-                              ? Colors.black
-                              : cs.outline.withValues(alpha: 0.35),
-                          width: a11y.highContrast ? 1.5 : 1,
-                        ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: a11y.highContrast ? Colors.white : cs.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: a11y.highContrast
+                            ? Colors.black
+                            : cs.outline.withValues(alpha: 0.35),
+                        width: a11y.highContrast ? 1.5 : 1,
                       ),
+                    ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _sortMode,
@@ -1078,7 +1151,9 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                           ? ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -1086,7 +1161,9 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                           : ElevatedButton.styleFrom(
                               backgroundColor: cs.primary,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -1223,7 +1300,8 @@ class _ReviewCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white).withValues(alpha: 0.9),
+        color: (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white)
+            .withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1771,7 +1849,9 @@ class _AccessibilityScoreCard extends StatelessWidget {
               value: score / 100.0,
               minHeight: 10,
               backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>((a11y.highContrast ? Colors.black : _scoreColor(score))),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                (a11y.highContrast ? Colors.black : _scoreColor(score)),
+              ),
             ),
           ),
 
@@ -1929,13 +2009,20 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: (a11y.highContrast ? Colors.black.withValues(alpha: 0.12) : color.withValues(alpha: 0.12)),
+        color: (a11y.highContrast
+            ? Colors.black.withValues(alpha: 0.12)
+            : color.withValues(alpha: 0.12)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) Icon(icon, size: 16, color: (a11y.highContrast ? Colors.black : color)),
+          if (icon != null)
+            Icon(
+              icon,
+              size: 16,
+              color: (a11y.highContrast ? Colors.black : color),
+            ),
           if (icon != null) const SizedBox(width: 4),
           Text(
             text,

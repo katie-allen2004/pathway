@@ -11,6 +11,9 @@ import 'package:flutter/services.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
 import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog.dart';
 import 'package:pathway/features/venues/data/venue_edit_history_model.dart';
+import 'package:pathway/features/venues/data/venue_image_model.dart';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
 
 class ReviewShareHelper {
   // TODO: replace with your real production domain
@@ -210,6 +213,37 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     _venueFuture = _repo.fetchVenueById(widget.venueId);
   }
 
+  Future<void> _pickAndUploadVenueImage(VenueModel venue) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery);
+
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+
+      await _repo.uploadVenueImage(
+        venueId: venue.id,
+        bytes: bytes,
+        fileName: file.name,
+        isPrimary: false,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image uploaded successfully.')),
+      );
+
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to upload image: $e')));
+    }
+  }
+
   Future<void> _showSuggestEditDialog() async {
     final submitted = await showDialog<bool>(
       context: context,
@@ -347,6 +381,12 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                   )
                 : null,
             actions: [
+              if (venue != null)
+                IconButton(
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  tooltip: 'Upload photo',
+                  onPressed: () => _pickAndUploadVenueImage(venue),
+                ),
               IconButton(
                 icon: Icon(
                   Icons.refresh,
@@ -615,27 +655,7 @@ class _OverviewTab extends StatelessWidget {
         _AccessibilityScoreCard(venue: venue),
         const SizedBox(height: 14),
 
-        _Card(
-          title: 'Photos',
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.network(
-                venue.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.grey[200],
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Image unavailable',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        _VenuePhotosCard(venue: venue),
 
         const SizedBox(height: 14),
         _Card(
@@ -1658,6 +1678,160 @@ class _PostsTab extends StatelessWidget {
 }
 
 /* -------------------- UI Components -------------------- */
+
+class _VenuePhotosCard extends StatefulWidget {
+  final VenueModel venue;
+
+  const _VenuePhotosCard({required this.venue});
+
+  @override
+  State<_VenuePhotosCard> createState() => _VenuePhotosCardState();
+}
+
+class _VenuePhotosCardState extends State<_VenuePhotosCard> {
+  int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = VenueRepository();
+
+    return _Card(
+      title: 'Photos',
+      child: FutureBuilder<List<VenueImageModel>>(
+        future: repo.fetchVenueImages(widget.venue.id),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final images = snapshot.data ?? [];
+
+          if (images.isEmpty) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  widget.venue.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.grey[200],
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Image unavailable',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (_selectedIndex >= images.length) {
+            _selectedIndex = 0;
+          }
+
+          final selectedImage = images[_selectedIndex];
+          final mainImageUrl = repo.getVenueImageUrl(selectedImage.imagePath);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    mainImageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey[200],
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Image unavailable',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (images.length > 1) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 78,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: images.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final img = images[index];
+                      final thumbUrl = repo.getVenueImageUrl(img.imagePath);
+                      final isSelected = index == _selectedIndex;
+
+                      return GestureDetector(
+                        onTap: () async {
+                          final img = images[index];
+
+                          setState(() {
+                            _selectedIndex = index;
+                          });
+
+                          try {
+                            await repo.setPrimaryVenueImage(
+                              venueId: widget.venue.id,
+                              imageId: img.imageId,
+                            );
+                          } catch (e) {
+                            debugPrint('Error setting primary image: $e');
+                          }
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.deepPurple
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              thumbUrl,
+                              width: 100,
+                              height: 78,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 100,
+                                height: 78,
+                                color: Colors.grey[200],
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.broken_image_outlined),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                '${images.length} photo${images.length == 1 ? '' : 's'} available',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
 
 class _Card extends StatelessWidget {
   final String title;

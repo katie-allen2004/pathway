@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:pathway/models/notification.dart';
 
 class InAppNotificationController {

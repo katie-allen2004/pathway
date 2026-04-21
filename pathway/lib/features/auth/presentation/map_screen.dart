@@ -16,6 +16,7 @@ import '/core/services/geo_code.dart';
 import '/features/venues/presentation/pages/venue_detail_page.dart'; 
 import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:icon_decoration/icon_decoration.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -26,6 +27,7 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final _supabase = Supabase.instance.client;
+
   final _repo = VenueRepository();
   final StorageService _storageService = StorageService();
   final GeocodingService _geocodingService = GeocodingService();
@@ -173,37 +175,56 @@ void _showSubmissionConfirmation() {
   final theme = Theme.of(context);
   final cs = theme.colorScheme;
   final a11y = context.read<AccessibilityController>().settings;
+  // dark mode: black bg, white text, orange accent (hourglass)
+  // high contrast: white bg, black text, black accent (hourglass)
+  // normal: white bg, black text, orange accent (hourglass)
+
+  final isDark = a11y.darkMode;
+  final isHighContrast = a11y.highContrast;
+
+  final dialogBg = isDark ? Colors.black : Colors.white;
+  final primaryText = isDark ? Colors.white : Colors.black;
+  final secondaryText = isDark ? Colors.white70 : Colors.black54;
+  final accentColor = isHighContrast ? Colors.black : Colors.orange;
 
   showDialog(
     context: context,
     barrierDismissible: false, // user clicks button
     builder: (context) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: dialogBg,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.hourglass_empty_rounded, color: a11y.highContrast ? Colors.black : Colors.orange, size: 50),
+          Icon(Icons.hourglass_empty_rounded, 
+              color: accentColor, 
+              size: 50
+          ),
           const SizedBox(height: 20),
           Text(
             "Venue Submitted!",
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
+              color: primaryText,
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             "Thank you for contributing! We're reviewing your submission to ensure all details are correct. It will appear on the map once it has been approved.",
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.black54),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: secondaryText,
+            ),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: a11y.highContrast ? Colors.black : cs.primary,
+              backgroundColor: isDark || isHighContrast ? accentColor : cs.primary,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text("Awesome", style: TextStyle(color: a11y.highContrast ? Colors.white : cs.onPrimary)),
+            child: Text("Awesome"),
           ),
         ],
       ),
@@ -309,6 +330,16 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final a11y = context.watch<AccessibilityController>().settings;
+
+        final borderColor = a11y.highContrast 
+            ? Colors.black
+            : a11y.darkMode
+                ? Colors.white
+                : cs.primary;
+
         void refresh() {
           if (context.mounted) setDialogState(() {});
         }
@@ -340,6 +371,7 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
 
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black : cs.background,
           title: Text(isEditing ? "Edit & Re-submit" : "Add New Venue"),
           content: SingleChildScrollView(
             child: Column(
@@ -356,31 +388,44 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                             isUploading = false;
                           });
                         },
+
+                  // dark mode: black bg, white text, light gray background for photo
+                  // high contrast: white bg, black text, black outline for add photo and larger text
+                  // normal: white bg, black text, primary color for accents
                   child: Container(
                     height: 120,
-                    width: double.infinity,
+                    width: double.infinity,                    
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple.withOpacity(0.05),
+                      color: (a11y.highContrast ? Colors.white : a11y.darkMode ? Colors.black45  : cs.primary.withValues(alpha: 0.05)), //Colors.deepPurple.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.deepPurple.withOpacity(0.1)),
+                      border: Border.all(color: a11y.highContrast ? Colors.black : a11y.darkMode ? Colors.white : cs.primary.withValues(alpha: 0.1)),
+                      //Colors.deepPurple.withOpacity(0.1)),
                     ),
                     child: isUploading
                         ? const Center(child: CircularProgressIndicator())
                         : (uploadedImageName == null
-                            ? const Column(
+                            ? Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add_a_photo, color: Colors.deepPurple),
-                                  Text("Add Photo", style: TextStyle(fontSize: 12)),
+                                  Icon(Icons.add_a_photo, color: a11y.highContrast ? Colors.black : a11y.darkMode ? Colors.white : cs.primary),
+                                  Text("Add Photo", style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: a11y.highContrast ? Colors.black : a11y.darkMode ? Colors.white : cs.primary,
+                                    fontSize: a11y.highContrast ? 15 : 12,
+                                  )//TextStyle(fontSize: 12)),
+                                  ),
                                 ],
                               )
                             : ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: const Column(
+                                child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.check_circle, color: Colors.green),
-                                    Text("Photo Ready", style: TextStyle(fontSize: 12)),
+                                    Icon(Icons.check_circle, color: (a11y.highContrast ? Colors.black : Colors.green)),
+                                    Text("Photo Ready", style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontSize: (a11y.highContrast ? 15 : 12),
+                                      color: (a11y.highContrast ? Colors.black : a11y.darkMode ? Colors.white : cs.primary),
+                                    )
+                                  ),
                                   ],
                                 ),
                               )),
@@ -388,40 +433,55 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                 ),
                 const SizedBox(height: 10),
                 TypeAheadField<Map<String, dynamic>>(
-    debounceDuration: const Duration(milliseconds: 500),
-    onSelected: (suggestion) {
-      addressController.text = suggestion['display_name'] ?? '';
-      latController.text = suggestion['lat'].toString();
-      lngController.text = suggestion['lon'].toString();
-      
-      final double lat = double.tryParse(suggestion['lat'].toString()) ?? 0.0;
-      final double lon = double.tryParse(suggestion['lon'].toString()) ?? 0.0;
-      
-      // center map on location 
-      _fmapController.move(latlng.LatLng(lat, lon), 15.0);
-      setDialogState(() {}); 
-    },
-    suggestionsCallback: (pattern) async {
-      return await _geocodingService.getAddressSuggestions(pattern);
-    },
-    itemBuilder: (context, suggestion) {
-      return ListTile(
-        leading: const Icon(Icons.location_on, color: Colors.deepPurple),
-        title: Text(suggestion['display_name'] ?? 'Unknown Address'),
-      );
-    },
-    builder: (context, controller, focusNode) {
-      return TextField(
-        controller: controller,
-        focusNode: focusNode,
-        decoration: const InputDecoration(
-          labelText: "Full Address",
-          prefixIcon: Icon(Icons.location_on),
-          hintText: "Start typing an address...",
-        ),
-      );
-    },
-  ),
+                  debounceDuration: const Duration(milliseconds: 500),
+                  onSelected: (suggestion) {
+                    addressController.text = suggestion['display_name'] ?? '';
+                    latController.text = suggestion['lat'].toString();
+                    lngController.text = suggestion['lon'].toString();
+                    
+                    final double lat = double.tryParse(suggestion['lat'].toString()) ?? 0.0;
+                    final double lon = double.tryParse(suggestion['lon'].toString()) ?? 0.0;
+                    
+                    // center map on location 
+                    _fmapController.move(latlng.LatLng(lat, lon), 15.0);
+                    setDialogState(() {}); 
+                  },
+                  suggestionsCallback: (pattern) async {
+                    return await _geocodingService.getAddressSuggestions(pattern);
+                  },
+                  itemBuilder: (context, suggestion) {
+                    return ListTile(
+                      leading: Icon(Icons.location_on, color: (a11y.highContrast ? Colors.black : cs.primary)),
+                      title: Text(suggestion['display_name'] ?? 'Unknown Address'),
+                    );
+                  },
+                  builder: (context, controller, focusNode) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: InputDecoration(
+                        labelText: "Full Address",
+                        prefixIcon: Icon(Icons.location_on),
+                        hintText: "Start typing an address...",
+
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: borderColor,
+                          ),
+                        ),
+
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: borderColor,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: nameController,
@@ -429,43 +489,105 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                     labelText: "Venue Name", 
                     prefixIcon: const Icon(Icons.business_rounded, size: 20),
                     errorText: nameController.text.isEmpty ? 'Required' : null,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: borderColor,
+                          ),
+                        ),
+
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: borderColor,
+                            width: 2,
+                          ),
+                        ),
                   ),
                 ),
 
                 const SizedBox(height: 10), // spacing
-Row(
-  children: [
-    Expanded(
-      child: TextField(
-        controller: latController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: "Latitude",
-          hintText: "e.g. 33.7701",
-          prefixIcon: Icon(Icons.map_outlined, size: 20),
-        ),
-      ),
-    ),
-    const SizedBox(width: 10),
-    Expanded(
-      child: TextField(
-        controller: lngController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: "Longitude",
-          hintText: "e.g. -118.1937",
-          prefixIcon: Icon(Icons.explore_outlined, size: 20),
-        ),
-      ),
-    ),
-  ],
-),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: latController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: "Latitude",
+                          hintText: "e.g. 33.7701",
+                          prefixIcon: Icon(Icons.map_outlined, size: 20),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: borderColor,
+                          ),
+                        ),
+
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: borderColor,
+                            width: 2,
+                          ),
+                        ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: lngController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: "Longitude",
+                          hintText: "e.g. -118.1937",
+                          prefixIcon: Icon(Icons.explore_outlined, size: 20),
+
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: borderColor,
+                            ),
+                          ),
+
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: borderColor,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
                 TextField(
                   controller: cityController,
                   decoration: InputDecoration(
                     labelText: "City", 
                     prefixIcon: const Icon(Icons.location_city_rounded, size: 20),
                     errorText: cityController.text.isEmpty ? 'Required' : null,
+
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: borderColor,
+                        ),
+                      ),
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: borderColor,
+                        width: 2,
+                      ),
+                    ),
                   ),
                 ),
                 TextField(
@@ -475,6 +597,21 @@ Row(
                     labelText: "Zip Code", 
                     prefixIcon: const Icon(Icons.map_rounded, size: 20),
                     errorText: zipController.text.isEmpty ? 'Required' : null,
+
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: borderColor,
+                      ),
+                    ),
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: borderColor,
+                        width: 2,
+                      ),
+                    ),
                   ),
                 ),
                 
@@ -484,18 +621,59 @@ Row(
                   alignment: Alignment.centerLeft,
                   child: Text("Set Hours (Mon-Fri):", style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
+                const SizedBox(height: 10),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    TextButton(onPressed: () => _selectTime(context, "mon", "open", setDialogState), child: Text("Open: ${_tempOperatingHours['mon']!['open']}")),
-                    TextButton(onPressed: () => _selectTime(context, "mon", "close", setDialogState), child: Text("Close: ${_tempOperatingHours['mon']!['close']}")),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _selectTime(context, "mon", "open", setDialogState),
+                        icon: const Icon(Icons.login),
+                        label: Text(
+                          "Open: ${_tempOperatingHours['mon']!['open']}",
+                          style: TextStyle(
+                            color: (a11y.darkMode ? Colors.white : Colors.black),
+                          )),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _selectTime(context, "mon", "close", setDialogState),
+                        icon: const Icon(Icons.logout),
+                        label: Text(
+                          "Close: ${_tempOperatingHours['mon']!['close']}",
+                          style: TextStyle(
+                            color: (a11y.darkMode ? Colors.white : Colors.black),
+                          )),
+                      ),
+                    ),
                   ],
                 ),
+
+                const SizedBox(height: 10),
 
                 TextField(
                   controller: descController,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: "Description", prefixIcon: Icon(Icons.description_rounded, size: 20)),
+                  decoration: InputDecoration(
+                    labelText: "Description", 
+                    prefixIcon: Icon(Icons.description_rounded, size: 20),
+                    
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: borderColor,
+                      ),
+                    ),
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: borderColor,
+                        width: 2,
+                      ),
+                    ),
+                    ),
                 ),
                 const SizedBox(height: 20),
                 const Align(
@@ -527,29 +705,35 @@ Row(
           ),
           actions: [
             TextButton(
+              // dark mode: white bg, black text, light gray border
+              // high contrast: white bg, black text, black border and larger text
+              // normal: white bg, gray text, primary color border
               onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+              child: Text(
+                "Cancel", 
+                style: TextStyle(
+                  color: a11y.highContrast ? Colors.black : a11y.darkMode ? Colors.white : cs.primary,)),
             ),
             ElevatedButton(
-  onPressed: !canSave
-      ? null
-      : () async {
-          try {
-            // coordinates
-            final double lat = double.tryParse(latController.text.trim()) ?? 0.0;
-            final double lng = double.tryParse(lngController.text.trim()) ?? 0.0;
+              onPressed: !canSave
+                  ? null
+                  : () async {
+                      try {
+                        // coordinates
+                        final double lat = double.tryParse(latController.text.trim()) ?? 0.0;
+                        final double lng = double.tryParse(lngController.text.trim()) ?? 0.0;
 
-            if (!isEditing) {
-              final exists = await _repo.venueExists(lat: lat, lng: lng);
-              if (exists) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("A venue already exists at these coordinates.")),
-                  );
-                }
-                return; 
-              }
-            }
+                        if (!isEditing) {
+                          final exists = await _repo.venueExists(lat: lat, lng: lng);
+                          if (exists) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("A venue already exists at these coordinates.")),
+                              );
+                            }
+                            return; 
+                          }
+                        }
 
             final data = {
               'name': nameController.text.trim(),
@@ -741,10 +925,10 @@ Row(
           children: [
             FloatingActionButton(
               heroTag: "locateBtn",
-              backgroundColor: a11y.highContrast ? Colors.black : Colors.white,
+              backgroundColor: a11y.highContrast || a11y.darkMode ? Colors.black : Colors.white,
               onPressed: _determinePosition,
               child: Icon(Icons.gps_fixed, 
-                color: a11y.highContrast ? Colors.white : Colors.deepPurple),
+                color: a11y.highContrast ? Colors.white : cs.primary),
             ),
             const SizedBox(height: 10),
             FloatingActionButton(
@@ -894,7 +1078,7 @@ Row(
                         border: a11y.highContrast ? Border.all(color: Colors.white, width: 2) : null,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: Colors.black.withValues(alpha: 0.15),
                             blurRadius: 15,
                             offset: const Offset(0, 5),
                           ),
@@ -920,7 +1104,7 @@ Row(
                                   Container(
                                     width: 90, height: 90,
                                     decoration: BoxDecoration(
-                                      color: Colors.deepPurple.withOpacity(0.1),
+                                      color: cs.primary.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(15),
                                     ),
                                     child: _selectedVenue!.imagePath != null
@@ -933,7 +1117,7 @@ Row(
                                                   const Icon(Icons.image_not_supported, color: Colors.grey),
                                             ),
                                           )
-                                        : const Icon(Icons.storefront, color: Colors.deepPurple, size: 40),
+                                        : Icon(Icons.storefront, color: cs.primary, size: 40),
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(
@@ -987,6 +1171,7 @@ Row(
 
   // scoring helper 
   Widget _getMarkerIcon(VenueModel venue) {
+    final a11y = context.watch<AccessibilityController>().settings;
     final specialTags = [
       'wheelchair accessible',
       'accessible restroom',
@@ -995,13 +1180,40 @@ Row(
     final vTags = venue.tags.map((t) => t.toLowerCase().trim()).toList();
     int score = specialTags.where((tag) => vTags.contains(tag)).length;
 
-    if (score >= 3) return const Icon(Icons.location_on, color: Color(0xFFFFD700), size: 45);
-    if (score == 2) return const Icon(Icons.location_on, color: Colors.blueAccent, size: 42);
-    if (score == 1) return const Icon(Icons.location_on, color: Colors.redAccent, size: 40);
+    if (score >= 3) {
+      return DecoratedIcon(
+      icon: Icon(Icons.location_on, color: Color(0xFFFFD700),  size: 45),
+      decoration: IconDecoration(
+        border: IconBorder(
+          color: (a11y.highContrast ? Colors.black : Color.fromARGB(255, 165, 108, 2)), 
+          width: (a11y.highContrast ? 5 : 3))
+        )
+      );
+    }
+    if (score == 2) {
+      return DecoratedIcon(
+      icon: Icon(Icons.location_on, color: Colors.blueAccent, size: 42),
+      decoration: IconDecoration(
+        border: IconBorder(
+          color: (a11y.highContrast ? Colors.black : const Color.fromARGB(255, 19, 34, 148)), 
+          width: (a11y.highContrast ? 5 : 3))
+        )
+    );
+    }
+    if (score == 1) {
+      return DecoratedIcon(
+        icon: Icon(Icons.location_on, color: Colors.redAccent, size: 40),
+        decoration: IconDecoration(
+        border: IconBorder(
+          color: (a11y.highContrast ? Colors.black : const Color.fromARGB(255, 135, 16, 16)), 
+          width: (a11y.highContrast ? 5 : 3))
+        )
+      );
+    }
 
     return Icon(
       Icons.location_on_outlined,
-      color: Colors.grey.withOpacity(0.5),
+      color: Colors.grey.withValues(alpha: 0.5),
       size: 35,
     );
   }

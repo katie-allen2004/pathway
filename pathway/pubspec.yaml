@@ -50,6 +50,7 @@ dependencies:
   share_plus: ^11.1.0
   geolocator: ^14.0.2
   flutter_typeahead: ^5.2.0
+  icon_decoration: ^2.1.0
     
 dev_dependencies:
   flutter_test:

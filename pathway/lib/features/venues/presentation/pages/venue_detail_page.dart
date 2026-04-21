@@ -347,7 +347,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
             leading: IconButton(
               icon: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: innerBoxIsScrolled ? cs.onSurface : Colors.white,
               ),
               onPressed: () => Navigator.pop(context),
             ),
@@ -1446,8 +1446,11 @@ class _MiniBadgeState extends State<_MiniBadge>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    
     final b = widget.badge;
-    final baseColor = _parseHexColor(b.colorHex) ?? Colors.deepPurple;
+    final baseColor = _parseHexColor(b.colorHex) ?? cs.primary;
 
     return ScaleTransition(
       scale: _scale,
@@ -1457,9 +1460,9 @@ class _MiniBadgeState extends State<_MiniBadge>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: baseColor.withOpacity(0.12),
+            color: baseColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: baseColor.withOpacity(0.25)),
+            border: Border.all(color: baseColor.withValues(alpha: 0.25)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1495,9 +1498,9 @@ class _MiniBadgeState extends State<_MiniBadge>
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
-                border: Border.all(color: color.withOpacity(0.25)),
+                border: Border.all(color: color.withValues(alpha: 0.25)),
               ),
               child: Icon(_iconFromKey(b.iconKey), color: color, size: 18),
             ),

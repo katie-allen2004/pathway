@@ -5,6 +5,9 @@ import 'review_model.dart';
 import 'package:pathway/features/gamification/data/badge_model.dart';
 import 'venue_suggestion_model.dart';
 import 'package:pathway/features/gamification/data/badge_tab_data.dart';
+import 'venue_edit_history_model.dart';
+import 'dart:typed_data';
+import 'package:pathway/features/venues/data/venue_image_model.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -520,6 +523,95 @@ class VenueRepository {
     });
   }
 
+  Future<List<VenueImageModel>> fetchVenueImages(int venueId) async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_images')
+          .select()
+          .eq('venue_id', venueId)
+          .order('is_primary', ascending: false)
+          .order('created_at', ascending: true);
+
+      debugPrint('fetchVenueImages raw res: $res');
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(VenueImageModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error fetching venue images: $e');
+      return [];
+    }
+  }
+
+  String getVenueImageUrl(String imagePath) {
+    return _client.storage.from('venue-images').getPublicUrl(imagePath);
+  }
+
+  Future<void> uploadVenueImage({
+    required int venueId,
+    required Uint8List bytes,
+    required String fileName,
+    bool isPrimary = false,
+  }) async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        throw Exception('Not signed in');
+      }
+
+      final safeFileName = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      final path = 'venue_$venueId/$safeFileName';
+
+      await _client.storage
+          .from('venue-images')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: false),
+          );
+
+      if (isPrimary) {
+        await _client
+            .schema('pathway')
+            .from('venue_images')
+            .update({'is_primary': false})
+            .eq('venue_id', venueId);
+      }
+
+      await _client.schema('pathway').from('venue_images').insert({
+        'venue_id': venueId,
+        'image_path': path,
+        'is_primary': isPrimary,
+        'uploaded_by': user.id,
+      });
+    } catch (e) {
+      debugPrint('Error uploading venue image: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> setPrimaryVenueImage({
+    required int venueId,
+    required String imageId,
+  }) async {
+    try {
+      await _client
+          .schema('pathway')
+          .from('venue_images')
+          .update({'is_primary': false})
+          .eq('venue_id', venueId);
+
+      await _client
+          .schema('pathway')
+          .from('venue_images')
+          .update({'is_primary': true})
+          .eq('image_id', imageId);
+    } catch (e) {
+      debugPrint('Error setting primary venue image: $e');
+      rethrow;
+    }
+  }
+
   Future<List<VenueSuggestionModel>> fetchPendingVenueSuggestions() async {
     try {
       final res = await _client
@@ -558,6 +650,23 @@ class VenueRepository {
     } catch (e) {
       debugPrint('Error in rejectVenueSuggestion: $e');
       rethrow;
+    }
+  }
+
+  Future<List<VenueEditHistoryModel>> fetchVenueEditHistory(int venueId) async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_edit_history')
+          .select()
+          .eq('venue_id', venueId)
+          .order('created_at', ascending: false);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(VenueEditHistoryModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error fetching edit history: $e');
+      return [];
     }
   }
 

@@ -39,7 +39,7 @@ class _InAppNotificationHostState extends State<InAppNotificationHost> {
     _overlayEntry = null;
 
     // Create overlay using context
-    final overlay = AppRouter.navigatorKey.currentState?.overlay;
+    final overlay = AppRouter.rootNavigatorKey.currentState?.overlay;
     if (overlay == null) {
       debugPrint('No overlay found');
       return;
@@ -164,7 +164,7 @@ class _TopBannerState extends State<_TopBanner>
                   await _dismissNow();
 
                   if (route != null) {
-                    AppRouter.navigatorKey.currentState?.pushNamed(route);
+                    AppRouter.rootNavigatorKey.currentState?.pushNamed(route);
                   }
                 },
 

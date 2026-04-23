@@ -4,6 +4,7 @@ import 'package:pathway/core/widgets/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pathway/core/routing/app_router.dart';
 import 'privacy_policy_page.dart';
+import 'package:go_router/go_router.dart';
 
 
 class HelpPage extends StatefulWidget {
@@ -157,7 +158,7 @@ class _HelpPageState extends State<HelpPage> {
                       title: const Text('Privacy policy'),
                       subtitle: const Text('View privacy policy'),
                       onTap: () {
-                        routePage(context, const PrivacyPolicyPage());
+                        context.push('/profile/privacy-policy');
                       },
                     ),
                   ],

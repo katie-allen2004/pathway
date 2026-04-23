@@ -13,23 +13,27 @@ import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog
 import 'package:pathway/features/venues/data/venue_edit_history_model.dart';
 import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'dart:typed_data';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ReviewShareHelper {
-  // TODO: replace with your real production domain
-  static const String _baseReviewUrl = 'https://pathway.app/reviews';
+  static const String _baseUrl = 'https://pathway.app';
 
-  static String reviewUrl(ReviewModel review) {
-    return '$_baseReviewUrl/${review.id}';
+  static String reviewUrl({
+    required int venueId,
+    required ReviewModel review,
+  }) {
+    return '$_baseUrl/map/venue/$venueId/reviews/${review.id}';
   }
 
   static String shareText({
+    required int venueId,
     required ReviewModel review,
     required String venueName,
   }) {
     final body = (review.text ?? '').trim();
     final rating = review.rating;
-    final url = reviewUrl(review);
+    final url = reviewUrl(venueId: venueId, review: review);
 
     final intro =
         'Check out this $rating-star review for $venueName on Pathway';
@@ -42,9 +46,10 @@ class ReviewShareHelper {
 
   static Future<void> copyReviewLink(
     BuildContext context, {
+    required int venueId,
     required ReviewModel review,
   }) async {
-    final url = reviewUrl(review);
+    final url = reviewUrl(venueId: venueId, review: review);
     await Clipboard.setData(ClipboardData(text: url));
 
     if (context.mounted) {
@@ -58,8 +63,9 @@ class ReviewShareHelper {
     BuildContext context, {
     required ReviewModel review,
     required String venueName,
+    required int venueId,
   }) async {
-    final text = shareText(review: review, venueName: venueName);
+    final text = shareText(venueId: venueId, review: review, venueName: venueName);
 
     try {
       await SharePlus.instance.share(
@@ -78,8 +84,9 @@ class ReviewShareHelper {
     BuildContext context, {
     required ReviewModel review,
     required String venueName,
+    required int venueId,
   }) async {
-    final url = reviewUrl(review);
+    final url = reviewUrl(venueId: venueId, review: review);
 
     final tweetText = 'Check out this review for $venueName on Pathway';
 
@@ -97,45 +104,11 @@ class ReviewShareHelper {
     }
   }
 
-  static Future<void> openInstagramWithCopiedLink(
-    BuildContext context, {
-    required ReviewModel review,
-  }) async {
-    final url = reviewUrl(review);
-
-    // Copy first so the user can paste it into a DM/story workflow.
-    await Clipboard.setData(ClipboardData(text: url));
-
-    // Instagram app deep link.
-    final instagramUri = Uri.parse('instagram://app');
-
-    final opened = await launchUrl(
-      instagramUri,
-      mode: LaunchMode.externalApplication,
-    );
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            opened
-                ? 'Instagram opened. Review link copied for paste.'
-                : 'Instagram not available. Review link copied instead.',
-          ),
-        ),
-      );
-    }
-
-    if (!opened) {
-      final webUri = Uri.parse('https://www.instagram.com/');
-      await launchUrl(webUri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   static Future<void> showShareSheet(
     BuildContext context, {
     required ReviewModel review,
     required String venueName,
+    required int venueId,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -149,7 +122,7 @@ class ReviewShareHelper {
                 title: const Text('Copy review link'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await copyReviewLink(context, review: review);
+                  await copyReviewLink(context, review: review, venueId: venueId);
                 },
               ),
               ListTile(
@@ -161,6 +134,7 @@ class ReviewShareHelper {
                     context,
                     review: review,
                     venueName: venueName,
+                    venueId: venueId,
                   );
                 },
               ),
@@ -169,16 +143,7 @@ class ReviewShareHelper {
                 title: const Text('Share to X'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await shareToX(context, review: review, venueName: venueName);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined),
-                title: const Text('Open Instagram'),
-                subtitle: const Text('Copies the link so you can paste it'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await openInstagramWithCopiedLink(context, review: review);
+                  await shareToX(context, review: review, venueName: venueName, venueId: venueId);
                 },
               ),
             ],
@@ -192,8 +157,16 @@ class ReviewShareHelper {
 class VenueDetailPage extends StatefulWidget {
   final int venueId;
   final VenueModel? initialVenue;
+  final int initialTabIndex;
+  final String? highlightReviewId;
 
-  const VenueDetailPage({super.key, required this.venueId, this.initialVenue});
+  const VenueDetailPage({
+    super.key, 
+    required this.venueId, 
+    this.initialVenue,
+    this.initialTabIndex = 0,
+    this.highlightReviewId,
+  });
 
   @override
   State<VenueDetailPage> createState() => _VenueDetailPageState();
@@ -284,6 +257,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
     return DefaultTabController(
       length: 3,
+      initialIndex: widget.initialTabIndex,
       child: FutureBuilder<VenueModel?>(
         future: _venueFuture,
         initialData: widget.initialVenue,
@@ -366,7 +340,13 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                 Icons.arrow_back,
                 color: innerBoxIsScrolled ? cs.onSurface : Colors.white,
               ),
-              onPressed: () => Navigator.pop(context),
+              onPressed: (){
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/map');
+                }
+              }
             ),
             backgroundColor: cs.surface,
             foregroundColor: cs.onSurface,
@@ -490,7 +470,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       body: TabBarView(
         children: [
           _OverviewTab(venue: venue, onSuggestEdit: _showSuggestEditDialog),
-          _ReviewsTab(venue: venue, onReviewAdded: _refresh),
+          _ReviewsTab(venue: venue, onReviewAdded: _refresh, highlightReviewId: widget.highlightReviewId),
           _PostsTab(venue: venue),
         ],
       ),
@@ -968,8 +948,13 @@ class _OverviewTab extends StatelessWidget {
 class _ReviewsTab extends StatefulWidget {
   final VenueModel venue;
   final Future<void> Function() onReviewAdded;
+  final String? highlightReviewId;
 
-  const _ReviewsTab({required this.venue, required this.onReviewAdded});
+  const _ReviewsTab({
+    required this.venue,
+    required this.onReviewAdded,
+    this.highlightReviewId,
+  });
 
   @override
   State<_ReviewsTab> createState() => _ReviewsTabState();
@@ -1215,14 +1200,19 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                 ...reviews.map((r) {
                   final badges =
                       _badgesByUser[r.userId] ?? const <BadgeModel>[];
+                  final isHighlighted = 
+                      widget.highlightReviewId != null &&
+                      r.id.toString() == widget.highlightReviewId;
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ReviewCard(
                       review: r,
+                      venueId: widget.venue.id,
                       venueName: widget.venue.name,
                       badges: badges,
                       animateBadgeIds: _animatedBadgeIdsByUser[r.userId] ?? {},
+                      isHighlighted: isHighlighted,
                       canManage:
                           currentUserId != null && r.userId == currentUserId,
                       onDelete: () async {
@@ -1275,22 +1265,26 @@ class _ReviewsTabState extends State<_ReviewsTab> {
 
 class _ReviewCard extends StatelessWidget {
   final ReviewModel review;
+  final int venueId;
   final String venueName;
   final bool canManage;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final List<BadgeModel> badges;
   final Set<int> animateBadgeIds;
+  final bool isHighlighted;
 
   const _ReviewCard({
     super.key,
     required this.review,
+    required this.venueId,
     required this.venueName,
     required this.canManage,
     required this.onEdit,
     required this.onDelete,
     required this.badges,
     required this.animateBadgeIds,
+    this.isHighlighted = false,
   });
   String _displayName(ReviewModel review) {
     final username = review.username?.trim();
@@ -1323,8 +1317,10 @@ class _ReviewCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white)
-            .withValues(alpha: 0.9),
+        color: isHighlighted
+          ? Colors.amber.withValues(alpha: 0.12)
+          : (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white)
+              .withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1334,10 +1330,12 @@ class _ReviewCard extends StatelessWidget {
           ),
         ],
         border: Border.all(
-          color: a11y.highContrast
-              ? Colors.black
-              : cs.outline.withValues(alpha: 0.35),
-          width: a11y.highContrast ? 1.5 : 1,
+          color: isHighlighted
+              ? Colors.amber
+              : a11y.highContrast
+                  ? Colors.black
+                  : cs.outline.withValues(alpha: 0.35),
+          width: isHighlighted ? 2 : (a11y.highContrast ? 1.5 : 1),
         ),
       ),
       child: Column(
@@ -1429,6 +1427,7 @@ class _ReviewCard extends StatelessWidget {
                     context,
                     review: review,
                     venueName: venueName,
+                    venueId: venueId,
                   );
                 },
               ),

@@ -1,51 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../features/home/presentation/pages/home_page.dart';
-import '../../features/profile/presentation/pages/profile_page.dart';
-import '../../features/messaging/presentation/pages/conversations_page.dart';
-import '/features/auth/presentation/map_screen.dart';
-
 import 'package:pathway/core/services/accessibility_controller.dart';
-import 'package:pathway/features/profile/presentation/widgets/badges_section.dart';
-
-class BadgesScreen extends StatelessWidget {
-  const BadgesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F1F7),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 56, 24, 28),
-            decoration: const BoxDecoration(color: Color(0xFF4F67D6)),
-            child: const Text(
-              'Badges',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 620),
-                  child: BadgesSection(),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class SelectedNavIcon extends StatelessWidget {
   final IconData icon;
@@ -83,28 +40,19 @@ class SelectedNavIcon extends StatelessWidget {
     }
   }
 
-class PathwayNavShell extends StatefulWidget {
-  const PathwayNavShell({super.key});
+class PathwayNavShell extends StatelessWidget {
+  final StatefulNavigationShell navigationShell;
 
-  @override
-  State<PathwayNavShell> createState() => _PathwayNavShellState();
-}
+  const PathwayNavShell({
+    super.key,
+    required this.navigationShell,
+  });
 
-class _PathwayNavShellState extends State<PathwayNavShell> {
-  int _selectedIndex = 0;
-
-  final List<Widget> _widgetOptions = <Widget>[
-    const HomePage(),
-    const MapScreen(),
-    const BadgesScreen(),
-    const ConversationsPage(),
-    const ProfilePage(),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+   void _onItemTapped(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
@@ -122,8 +70,7 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
             ? Colors.black
             : cs.onPrimary;
     return Scaffold(
-      body: _widgetOptions.elementAt(_selectedIndex),
-
+      body: navigationShell,
       bottomNavigationBar: Container(
         // Add texture and color to the bottom navigation bar
         decoration: BoxDecoration(
@@ -140,13 +87,11 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
                 ),
         ),
         child: Theme(
-          data: Theme.of(
-            context,
-          ).copyWith(navigationBarTheme: Theme.of(context).navigationBarTheme),
+          data: Theme.of(context).copyWith(navigationBarTheme: Theme.of(context).navigationBarTheme),
           child: BottomNavigationBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            currentIndex: _selectedIndex,
+            currentIndex: navigationShell.currentIndex,
 
             selectedItemColor: navFg,
             unselectedItemColor: navFg,
@@ -159,8 +104,10 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
             ).textTheme.labelSmall?.copyWith(fontSize: 12, color: navFg),
             showSelectedLabels: true,
             showUnselectedLabels: true,
+            type: BottomNavigationBarType.fixed,
+            onTap: _onItemTapped,
 
-            items: <BottomNavigationBarItem>[
+            items: const [
               BottomNavigationBarItem(
                 // Home icon
                 icon: SelectedNavIcon(
@@ -222,8 +169,6 @@ class _PathwayNavShellState extends State<PathwayNavShell> {
                 label: 'Profile',
               ),
             ],
-            onTap: _onItemTapped,
-            type: BottomNavigationBarType.fixed,
           ),
         ),
       ),

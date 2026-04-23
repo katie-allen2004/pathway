@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../data/venue_model.dart';
 import '../pages/venue_detail_page.dart';
 import 'package:pathway/core/services/accessibility_controller.dart';
+import 'subscribe_venue_button.dart';
 
 class VenueCard extends StatelessWidget {
   final VenueModel venue;
@@ -242,6 +243,13 @@ class VenueCard extends StatelessWidget {
                             ],
                           ),
                       ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // subscribe/unsubscribe button
+                    SubscribeVenueButton(
+                      venueId: venue.id.toString(),
                     ),
 
                     const SizedBox(height: 6),

@@ -15,6 +15,7 @@ import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'dart:typed_data';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../widgets/subscribe_venue_button.dart';
 
 class ReviewShareHelper {
   static const String _baseUrl = 'https://pathway.app';
@@ -615,22 +616,24 @@ class _OverviewTab extends StatelessWidget {
 
         const SizedBox(height: 14),
 
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SizedBox(
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed: onSuggestEdit,
-              icon: const Icon(Icons.edit_note_rounded, size: 18),
-              label: const Text('Suggest Edit'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+        Row(
+          children: [
+            SizedBox(
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: onSuggestEdit,
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('Suggest Edit'),
               ),
             ),
-          ),
+
+            const SizedBox(width: 12),
+
+            // subscribe/unsubscribe button
+            SubscribeVenueButton(
+              venueId: venue.id.toString(),
+            ),
+          ],
         ),
 
         const SizedBox(height: 16),

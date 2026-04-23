@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart' as fmap;
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 
 import '/features/venues/data/venue_repository.dart';
 import '/features/venues/data/venue_model.dart';
@@ -997,10 +998,7 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                         const SizedBox(width: 12),
                         GestureDetector(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const ProfilePage()),
-                            );
+                            context.push('/profile');
                           },
                           child: Container(
                             padding: const EdgeInsets.all(12),
@@ -1090,12 +1088,7 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => VenueDetailPage(venueId: _selectedVenue!.id),
-                                ),
-                              );
+                              context.push('/map/venue/${_selectedVenue!.id}');
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),

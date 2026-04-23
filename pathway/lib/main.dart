@@ -133,13 +133,6 @@ class PathwayApp extends StatelessWidget {
       child: Consumer<AccessibilityController>(
         builder: (context, a11y, _) {
           final s = a11y.settings;
-          /*
-          // Your original theme (keep all your styling!)
-          final baseTheme = buildPathwayTheme();
-
-          // Apply a11y on top of it
-          final themed = _applyA11yToTheme(baseTheme, s);
-          */
 
           final lightBase = buildPathwayTheme(brightness: Brightness.light);
           final darkBase  = buildPathwayTheme(brightness: Brightness.dark);
@@ -147,8 +140,8 @@ class PathwayApp extends StatelessWidget {
           final themedLight = _applyA11yToTheme(lightBase, s);
           final themedDark  = _applyA11yToTheme(darkBase, s);
 
-          return MaterialApp(
-            navigatorKey: AppRouter.navigatorKey,
+          return MaterialApp.router(
+            routerConfig: AppRouter.router,
             title: 'Pathway',
             theme: themedLight,
             darkTheme: themedDark,
@@ -156,20 +149,17 @@ class PathwayApp extends StatelessWidget {
             builder: (context, child) {
               final mq = MediaQuery.of(context);
 
-              // Global text scaling
               Widget out = MediaQuery(
                 data: mq.copyWith(textScaler: TextScaler.linear(s.textScale)),
                 child: child ?? const SizedBox.shrink(),
               );
 
-              // Optional: reduce motion globally (small-project friendly)
               if (s.reduceMotion) {
                 out = TickerMode(enabled: false, child: out);
               }
 
               return InAppNotificationHost(child: out); // return out;
             },
-            home: const LoginScreen(),
           );
         },
       ),
@@ -177,12 +167,7 @@ class PathwayApp extends StatelessWidget {
   }
 
   ThemeMode _themeModeFromSettings(AccessibilitySettings s) {
-    // adjust based on whatever you store in settings
-    // If you only store s.darkMode boolean:
     return s.darkMode ? ThemeMode.dark : ThemeMode.light;
-
-    // If you later store system/light/dark:
-    // return s.themeMode;
   }
 }
 

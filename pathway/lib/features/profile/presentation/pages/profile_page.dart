@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pathway/core/routing/app_router.dart';
 // import admin view
 import 'package:pathway/features/admin/presentation/mod_dashboard.dart'; 
@@ -450,10 +451,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.person,
                     title: 'Edit profile information',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const EditProfilePage(),
-                      );
+                      final changed = await context.push('/profile/edit');
                       if (changed == true) _refresh();
                     },
                   ),
@@ -461,10 +459,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.notifications_rounded,
                     title: 'Notification settings',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const NotificationSettingsPage(),
-                      );
+                      final changed = await context.push('/profile/notification');
                       if (changed == true) _refresh();
                     },
                   ),
@@ -472,10 +467,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.settings_accessibility_rounded,
                     title: 'Accessibility settings',
                     onTap: () async {
-                      final changes = await routePage(
-                        context,
-                        const AccessibilitySettingsPage(),
-                      );
+                      final changes = await context.push('/profile/accessibility');
                       if (changes == true) _refresh();
                     },
                   ),
@@ -487,10 +479,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.favorite,
                     title: 'Favorites',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const FavoritesPage(),
-                      );
+                      final changed = await context.push('/profile/favorites');
                       if (changed == true) _refresh();
                     },
                   ),
@@ -514,10 +503,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.security_rounded,
                     title: 'Security settings',
                     onTap: () async {
-                      final changes = await routePage(
-                        context,
-                        const SecuritySettingsPage(),
-                      );
+                      final changes = await context.push('/profile/security');
                       if (changes == true) _refresh();
                     },
                   ),
@@ -525,10 +511,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.notifications_off_rounded,
                     title: 'Blocked and muted users',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const BlockedMutedPage(),
-                      );
+                      final changed = await context.push('/profile/blocked-muted');
                       if (changed == true) _refresh();
                     },
                   ),
@@ -537,7 +520,7 @@ Widget _buildStatusIcon(String status) {
                     TileInstance(
                       icon: Icons.admin_panel_settings_rounded,
                       title: 'Moderator Dashboard',
-                      onTap: () => routePage(context, const ModeratorDashboard()),
+                      onTap: () => context.push('/profile/moderator'),
                     ),
                 ],
               ),
@@ -549,10 +532,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.help_center_rounded,
                     title: 'Help',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const HelpPage(),
-                      );
+                      final changed = await context.push('/profile/help');
                       if (changed == true) _refresh();
                     },
                   ),
@@ -560,10 +540,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.contact_page_rounded,
                     title: 'Contact us',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const ContactUsPage(),
-                      );
+                      final changed = await context.push('/profile/contact-us');
                       if (changed == true) _refresh();
                     },
                   ),
@@ -571,10 +548,7 @@ Widget _buildStatusIcon(String status) {
                     icon: Icons.lock_outline_rounded,
                     title: 'Privacy Policy',
                     onTap: () async {
-                      final changed = await routePage(
-                        context,
-                        const PrivacyPolicyPage(),
-                      );
+                      final changed = await context.push('/profile/privacy-policy');
                       if (changed == true) _refresh();
                     },
                   ),

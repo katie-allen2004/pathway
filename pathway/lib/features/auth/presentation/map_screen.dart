@@ -6,8 +6,7 @@ import 'package:flutter_map/flutter_map.dart' as fmap;
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:go_router/go_router.dart';
-
+import 'package:geocoding/geocoding.dart';
 import '/features/venues/data/venue_repository.dart';
 import '/features/venues/data/venue_model.dart';
 import '/features/venues/presentation/widgets/venue_card.dart';
@@ -18,6 +17,7 @@ import '/features/venues/presentation/pages/venue_detail_page.dart';
 import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:icon_decoration/icon_decoration.dart';
+import 'package:go_router/go_router.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -37,6 +37,8 @@ class _MapScreenState extends State<MapScreen> {
   latlng.LatLng? _currentPosition;
   final fmap.MapController _fmapController = fmap.MapController();
   VenueModel? _selectedVenue;
+  final fmap.MapController _mapController = fmap.MapController();  
+  latlng.LatLng? _destinationPoint;
 
   Map<String, Map<String, String>> _tempOperatingHours = {
     "mon": {"open": "09:00", "close": "17:00"},
@@ -51,7 +53,9 @@ class _MapScreenState extends State<MapScreen> {
   List<VenueModel> _allVenues = [];
   List<VenueModel> _filteredVenues = [];
   List<Map<String, dynamic>> _allAvailableTags = [];
-
+  
+  double _selectedDistance = 5.0;
+  bool _isRadiusFilterActive = false;
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
   bool _showSavedOnly = false;
@@ -134,6 +138,29 @@ class _MapScreenState extends State<MapScreen> {
       setState(() => _isLoading = false);
     }
   }
+
+
+Future<String> _getAddrFromCoords(double lat, double lng) async {
+  try {
+    List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng)
+        .timeout(const Duration(seconds: 5));
+
+    if (placemarks.isNotEmpty) {
+      final Placemark place = placemarks[0];
+      
+      String street = place.street ?? "";
+      String city = place.locality ?? "";
+
+      if (street.isNotEmpty || city.isNotEmpty) {
+        return "${street.isNotEmpty ? '$street, ' : ''}$city".trim();
+      }
+    }
+  } catch (e) {
+    debugPrint("Geocoding logic caught: $e");
+  }
+  return "Coordinates: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+}
+
 
   Future<void> _refreshVenues() async {
     try {
@@ -317,10 +344,13 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
   final cityController = TextEditingController(text: existingVenue?.city);
   final zipController = TextEditingController(text: existingVenue?.zipCode);
   final descController = TextEditingController(text: existingVenue?.description);
-  final addressController = TextEditingController();
+  final addressController = TextEditingController(text: existingVenue?.addressLine1 ?? '');
   final latController = TextEditingController(text: existingVenue?.latitude?.toString());
   final lngController = TextEditingController(text: existingVenue?.longitude?.toString());
 
+  double? _selectedLat = existingVenue?.latitude;
+  double? _selectedLng = existingVenue?.longitude;
+  
   List<int> selectedTagIds = [];
   String? uploadedImageName = existingVenue?.imagePath;
   bool isUploading = false;
@@ -436,32 +466,45 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                 TypeAheadField<Map<String, dynamic>>(
                   debounceDuration: const Duration(milliseconds: 500),
                   onSelected: (suggestion) {
-                    addressController.text = suggestion['display_name'] ?? '';
-                    latController.text = suggestion['lat'].toString();
-                    lngController.text = suggestion['lon'].toString();
+                    final String newAddress = suggestion['display_name'] ?? '';
+                    final String newLat = suggestion['lat']?.toString() ?? '';
+                    final String newLon = suggestion['lon']?.toString() ?? '';
                     
-                    final double lat = double.tryParse(suggestion['lat'].toString()) ?? 0.0;
-                    final double lon = double.tryParse(suggestion['lon'].toString()) ?? 0.0;
+                    //final double lat = double.tryParse(suggestion['lat'].toString()) ?? 0.0;
+                    //final double lon = double.tryParse(suggestion['lon'].toString()) ?? 0.0;
                     
                     // center map on location 
-                    _fmapController.move(latlng.LatLng(lat, lon), 15.0);
-                    setDialogState(() {}); 
+                    _fmapController.move(latlng.LatLng(double.parse(newLat), double.parse(newLon)), 15.0);
+                    setDialogState(() {
+                      addressController.text = suggestion['display_name'] ?? '';
+                      latController.text = newLat;
+                      lngController.text = newLon;                     
+                      _selectedLat = double.parse(newLat);
+                      _selectedLng = double.parse(newLon); 
+                      _fmapController.move(latlng.LatLng(double.parse(newLat), double.parse(newLon)), 15.0);
+                    }); 
                   },
                   suggestionsCallback: (pattern) async {
+                    if(pattern.length < 3) return [];
                     return await _geocodingService.getAddressSuggestions(pattern);
                   },
                   itemBuilder: (context, suggestion) {
                     return ListTile(
                       leading: Icon(Icons.location_on, color: (a11y.highContrast ? Colors.black : cs.primary)),
-                      title: Text(suggestion['display_name'] ?? 'Unknown Address'),
+                      title: Text(suggestion['display_name'] ?? 'Unknown Address',
+                      maxLines: 2, 
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13)),
                     );
                   },
+
+
                   builder: (context, controller, focusNode) {
                     return TextField(
                       controller: controller,
                       focusNode: focusNode,
                       decoration: InputDecoration(
-                        labelText: "Full Address",
+                        labelText: "Search Address",
                         prefixIcon: Icon(Icons.location_on),
                         hintText: "Start typing an address...",
 
@@ -483,6 +526,37 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                     );
                   },
                 ),
+                const SizedBox(height: 10),
+
+      TextField(
+      readOnly: true,
+      controller: addressController,
+      style: TextStyle(
+        color: a11y.darkMode ? Colors.white : Colors.black87,
+        fontSize: 14,
+      ),
+      decoration: InputDecoration(
+        labelText: "Confirmed Address",
+        labelStyle: TextStyle(color: a11y.darkMode ? Colors.white70 : Colors.black54),
+        filled: true,
+        fillColor: a11y.darkMode ? Colors.white.withOpacity(0.05) : Colors.grey[50], 
+        prefixIcon: Icon(Icons.check_circle, color: Colors.green[400]),
+        
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: borderColor, // This uses your dynamic theme variable
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: borderColor, // Matches the highlight color
+            width: 2,
+          ),
+        ),
+      ),
+    ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: nameController,
@@ -744,8 +818,8 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
               'image_path': uploadedImageName,
               'address_line1': addressController.text.trim(),
               'status': 'pending',
-              'latitude': lat, 
-              'longitude': lng, 
+              'latitude': double.tryParse(latController.text), 
+              'longitude': double.tryParse(lngController.text), 
               'operating_hours': _tempOperatingHours,
               'moderator_notes': isEditing ? existingVenue.modNotes : null,
             };
@@ -915,7 +989,7 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final a11y = context.watch<AccessibilityController>().settings;
-
+    double cardOffset = (_selectedVenue != null) ? 140 : 0;
     return Scaffold(
       floatingActionButton: AnimatedPadding(
         duration: const Duration(milliseconds: 300),
@@ -951,8 +1025,47 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                   options: fmap.MapOptions(
                     initialCenter: latlng.LatLng(33.7701, -118.1937),
                     initialZoom: 12,
-                    // deselect maker when tapping on map. 
                     onTap: (_, __) => setState(() => _selectedVenue = null),
+                    
+                    // Update: This recalculates the distance and address every time you press
+                    onLongPress: (tapPosition, point) async {
+                      // 1. Calculate distance immediately using the new point
+                      double distance = 0;
+                      if (_currentPosition != null) {
+                        double distanceInMeters = Geolocator.distanceBetween(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                          point.latitude,
+                          point.longitude,
+                        );
+                        distance = distanceInMeters / 1609.34; // Convert to miles [cite: 14]
+                      }
+
+                      setState(() {
+                        _destinationPoint = point;
+                      });
+
+                      String discoveredAddress = await _getAddrFromCoords(point.latitude, point.longitude);
+                      
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Clear the old one first
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            "Destination: $discoveredAddress\n"
+                            "Dist: ${distance.toStringAsFixed(2)} mi"
+                          ),
+                          duration: const Duration(seconds: 5),
+                          behavior: SnackBarBehavior.floating,
+                          margin: const EdgeInsets.only(bottom: 15, left: 8, right: 8), 
+                          action: SnackBarAction(
+                            label: "CLEAR",
+                            onPressed: () => setState(() => _destinationPoint = null),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   children: [
                     fmap.TileLayer(
@@ -960,36 +1073,119 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                       userAgentPackageName: 'com.pathway.app',
                     ),
                     fmap.MarkerLayer(
-                      markers: [
-                        // current pos 
-                        if (_currentPosition != null)
-                          fmap.Marker(
-                            point: _currentPosition!,
-                            width: 40,
-                            height: 40,
-                            child: const Icon(
-                              Icons.my_location,
-                              color: Colors.blueAccent,
-                              size: 30,
-                            ),
+                    markers: [
+                      if (_currentPosition != null)
+                        fmap.Marker(
+                          point: _currentPosition!,
+                          width: 40,
+                          height: 40,
+                          child: const Icon(
+                            Icons.my_location,
+                            color: Colors.blueAccent,
+                            size: 30,
                           ),
-                        // Merged filtered venues with your custom _getMarkerIcon logic
-                        ..._filteredVenues.map((v) {
-                          return fmap.Marker(
-                            point: latlng.LatLng(v.latitude ?? 0, v.longitude ?? 0),
-                            width: 50,
-                            height: 50,
-                            child: GestureDetector(
-                              onTap: () => setState(() => _selectedVenue = v),
-                              child: _getMarkerIcon(v),
-                            ),
+                        ),
+                        if (_destinationPoint != null)
+                        fmap.Marker(
+                          point: _destinationPoint!,
+                          width: 50,
+                          height: 50,
+                          child: const Icon(Icons.location_on, color: Colors.red, size: 45),
+                        ),
+                      ..._allVenues.where((v) {
+                        // Search Logic
+                        bool matchesSearch = true;
+                        if (_searchController.text.isNotEmpty) {
+                          matchesSearch = v.name?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false;
+                        }
+                        // Radius Logic
+                        bool matchesRadius = true;
+                        if (_isRadiusFilterActive && _currentPosition != null) {
+                          double distanceInMeters = Geolocator.distanceBetween(
+                            _currentPosition!.latitude, _currentPosition!.longitude,
+                            v.latitude ?? 0, v.longitude ?? 0,
                           );
-                        }).toList(),
-                      ],
-                    ),
+                          matchesRadius = (distanceInMeters / 1609.34) <= _selectedDistance;
+                        }
+                        return matchesSearch && matchesRadius;
+                      }).map((v) {
+                        return fmap.Marker(
+                          point: latlng.LatLng(v.latitude ?? 0, v.longitude ?? 0),
+                          width: 50,
+                          height: 50,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedVenue = v),
+                            child: _getMarkerIcon(v),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
                   ],
                 ),
-                // head structure 
+               AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                bottom: 150 + (_selectedVenue != null ? 140 : 0),
+                right: 15,
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: a11y.darkMode ? Colors.grey[900] : Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                    child: SizedBox(
+                      width: _isRadiusFilterActive ? 160 : 95,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "Nearby",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: a11y.darkMode ? Colors.white : Colors.black87,
+                                  ),
+                                  overflow: TextOverflow.ellipsis, 
+                                ),
+                              ),
+                              Transform.scale(
+                                scale: 0.55,
+                                child: Switch(
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  value: _isRadiusFilterActive,
+                                  activeColor: cs.primary,
+                                  onChanged: (val) => setState(() => _isRadiusFilterActive = val),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_isRadiusFilterActive) ...[
+                            Text("${_selectedDistance.toStringAsFixed(0)} mi", style: TextStyle(fontSize: 9, color: cs.primary, fontWeight: FontWeight.bold)),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 1,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                              ),
+                              child: Slider(
+                                value: _selectedDistance,
+                                min: 1, max: 50, divisions: 49,
+                                onChanged: (val) => setState(() => _selectedDistance = val),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+               
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -998,7 +1194,7 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                         const SizedBox(width: 12),
                         GestureDetector(
                           onTap: () {
-                            context.push('/profile');
+                            context.push("/profile");
                           },
                           child: Container(
                             padding: const EdgeInsets.all(12),
@@ -1042,6 +1238,29 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontWeight: a11y.boldText ? FontWeight.w700 : null,
                               ),
+
+                              onChanged: (value) {
+                                setState(() {
+                                });
+                              },
+                              onSubmitted: (value) {
+                                if (value.isEmpty) return;
+
+                                final matches = _allVenues.where((v) =>
+                                    v.name?.toLowerCase().contains(value.toLowerCase()) ?? false).toList();
+
+                                if (matches.isNotEmpty) {
+                                  final venue = matches.first;
+                                  if (venue.latitude != null && venue.longitude != null) {
+                                    _mapController.move(
+                                      latlng.LatLng(venue.latitude!, venue.longitude!),
+                                      15.0, 
+                                    );
+                                    
+                                    setState(() => _selectedVenue = venue);
+                                  }
+                                }
+                              },
                             ),
                           ),
                         ),
@@ -1088,7 +1307,7 @@ Future<void> _showAddVenueDialog({VenueModel? existingVenue}) async {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () {
-                              context.push('/map/venue/${_selectedVenue!.id}');
+                              context.push('map/venue/${_selectedVenue!.id}');
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),

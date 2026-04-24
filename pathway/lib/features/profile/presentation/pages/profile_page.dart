@@ -22,6 +22,7 @@ import 'package:pathway/models/accessibility_settings.dart';
 import 'package:pathway/features/venues/data/venue_model.dart'; 
 import '../widgets/badges_section.dart';
 import 'follow_list_page.dart';
+import 'package:pathway/features/venues/presentation/pages/my_venues_page.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -481,6 +482,18 @@ Widget _buildStatusIcon(String status) {
                     onTap: () async {
                       final changed = await context.push('/profile/favorites');
                       if (changed == true) _refresh();
+                    },
+                  ),
+                  TileInstance(
+                    icon: Icons.notifications_active_rounded,
+                    title: 'My Subscribed Venues',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MyVenuesPage(),
+                        ),
+                      );
                     },
                   ),
                 ],

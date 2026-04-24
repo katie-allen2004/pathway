@@ -624,6 +624,15 @@ class _OverviewTab extends StatelessWidget {
                 onPressed: onSuggestEdit,
                 icon: const Icon(Icons.edit_note_rounded, size: 18),
                 label: const Text('Suggest Edit'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                  ),
+                ),
               ),
             ),
 

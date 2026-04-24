@@ -94,11 +94,16 @@ class _SubscribeVenueButtonState
             : Icons.notifications_none,
         size: 18,
       ),
-      label: Text(_isSubscribed ? 'Subscribed' : 'Subscribe'),
+      label: Text(
+        _isSubscribed ? 'Subscribed' : 'Subscribe', // capitalized
+      ),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
         ),
       ),
     ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'other_user_profile.dart';
+import 'package:pathway/features/messaging/data/messaging_service.dart';
+import 'package:pathway/features/messaging/presentation/pages/conversations_page.dart';
 
 class FollowListPage extends StatefulWidget {
   final String mode; // 'followers' or 'following'
@@ -64,6 +66,40 @@ class _FollowListPageState extends State<FollowListPage> {
       }).toList();
     });
   }
+
+  final _messagingService = MessagingService();
+
+  Future<void> _openMessageForUser(Map<String, dynamic> user) async {
+  final otherPathwayUserId = user['user_id'] as int;
+  final displayName = user['display_name'] as String;
+  final avatarUrl = user['avatar_url'] as String?;
+
+  try {
+    final conversationId = await _messagingService.openOrCreateDm(
+      otherPathwayUserId: otherPathwayUserId,
+      title: displayName,
+    );
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConversationScreen(
+          conversationId: conversationId.toString(),
+          title: displayName,
+          avatarUrls: [avatarUrl],
+          online: false,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('Failed to open message from follow list: $e');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Could not open conversation: $e')),
+    );
+  }
+}
 
   Future<void> _loadUsers() async {
     setState(() {
@@ -364,11 +400,11 @@ class _FollowListPageState extends State<FollowListPage> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder:
-                                            (_) => OtherUserProfilePage(
-                                              userId: externalId,
-                                              displayName: displayName,
-                                            ),
+                                        builder: (_) => OtherUserProfilePage(
+                                          userId: externalId,
+                                          displayName: displayName,
+                                          onMessage: () => _openMessageForUser(user),
+                                        ),
                                       ),
                                     );
                                   },

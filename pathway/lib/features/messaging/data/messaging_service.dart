@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
 
 class MessagingService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -315,5 +316,34 @@ class MessagingService {
         .eq('conversation_id', conversationId)
         .select()
         .single();
+  }
+  // update conversation image
+  Future<String> updateConversationImage({
+    required int conversationId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final path =
+        'conversation_$conversationId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+    await _supabase.storage.from('chat-icons').uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(upsert: true),
+        );
+
+    final publicUrl = _supabase.storage.from('chat-icons').getPublicUrl(path);
+
+    await _supabase
+        .schema('pathway')
+        .from('conversations')
+        .update({
+          'image_path': publicUrl,
+        })
+        .eq('conversation_id', conversationId)
+        .select()
+        .single();
+
+    return publicUrl;
   }
 }

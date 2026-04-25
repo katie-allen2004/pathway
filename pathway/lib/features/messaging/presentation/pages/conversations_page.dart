@@ -5,6 +5,7 @@ import '../../../../models/user_profile.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 import 'package:pathway/features/messaging/data/messaging_service.dart';
+import 'package:image_picker/image_picker.dart';
 
 //profile page
 import 'package:pathway/features/profile/presentation/pages/other_user_profile.dart';
@@ -452,7 +453,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
       final convoRows = await _supabase
           .schema('pathway')
           .from('conversations')
-          .select('conversation_id, is_group, title, created_at')
+          .select('conversation_id, is_group, title, created_at, image_path')
           .inFilter('conversation_id', conversationIds);
 
       final built = <_Conversation>[];
@@ -462,6 +463,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
         final isGroup = convo['is_group'] as bool? ?? false;
         String title = (convo['title'] as String?)?.trim() ?? '';
         List<String?> avatarUrls = [null];
+        final customImagePath = convo['image_path'] as String?;
         bool online = false;
 
         final messageRows = await _supabase
@@ -546,31 +548,36 @@ class _ConversationsPageState extends State<ConversationsPage> {
             title = 'Group Chat (${memberIds.length})';
           }
 
-          final avatarList = <String?>[];
-          for (final id in otherIds.take(4)) {
-            final userRow = await _supabase
-                .schema('pathway')
-                .from('users')
-                .select('external_id')
-                .eq('user_id', id)
-                .maybeSingle();
+          // use custom group image if one exists
+          if (customImagePath != null && customImagePath.isNotEmpty) {
+            avatarUrls = [customImagePath];
+          } else {
+            final avatarList = <String?>[];
 
-            final externalId = userRow?['external_id'] as String?;
-            if (externalId == null) continue;
+            for (final id in otherIds.take(4)) {
+              final userRow = await _supabase
+                  .schema('pathway')
+                  .from('users')
+                  .select('external_id')
+                  .eq('user_id', id)
+                  .maybeSingle();
 
-            final profileRow = await _supabase
-                .schema('pathway')
-                .from('profiles')
-                .select('avatar_url')
-                .eq('user_id', externalId)
-                .maybeSingle();
+              final externalId = userRow?['external_id'] as String?;
+              if (externalId == null) continue;
 
-            avatarList.add(profileRow?['avatar_url'] as String?);
+              final profileRow = await _supabase
+                  .schema('pathway')
+                  .from('profiles')
+                  .select('avatar_url')
+                  .eq('user_id', externalId)
+                  .maybeSingle();
+
+              avatarList.add(profileRow?['avatar_url'] as String?);
+            }
+
+            avatarUrls = avatarList.isEmpty ? [null] : avatarList;
           }
-
-          avatarUrls = avatarList.isEmpty ? [null] : avatarList;
         }
-
         built.add(
           isGroup
               ? _Conversation.group(
@@ -1236,9 +1243,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final TextEditingController _messageController = TextEditingController();
 
   late String _title;
+  late List<String?> _avatarUrls;
 
   bool _isLoading = true;
   bool _isSending = false;
+  bool _isUpdatingImage = false;
 
   int? _myPathwayUserId;
   List<_Message> _messages = [];
@@ -1247,6 +1256,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void initState() {
     super.initState();
     _title = widget.title;
+    _avatarUrls = List<String?>.from(widget.avatarUrls);
     _loadMessages();
   }
 
@@ -1254,6 +1264,37 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void dispose() {
     _messageController.dispose();
     super.dispose();
+  }
+
+  // show chat edit options
+  Future<void> _showEditChatOptions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: const Text('Rename chat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRenameChatDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_rounded),
+                title: const Text('Change chat photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _changeChatPhoto();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // show dialog to rename chat
@@ -1311,6 +1352,52 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not rename chat: $e')),
+      );
+    }
+  }
+
+  // pick and upload new chat photo
+  Future<void> _changeChatPhoto() async {
+    final conversationId = int.tryParse(widget.conversationId);
+    if (conversationId == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery);
+
+      if (file == null) return;
+
+      setState(() {
+        _isUpdatingImage = true;
+      });
+
+      final bytes = await file.readAsBytes();
+
+      final imageUrl = await _messagingService.updateConversationImage(
+        conversationId: conversationId,
+        bytes: bytes,
+        fileName: file.name,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _avatarUrls = [imageUrl];
+        _isUpdatingImage = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat photo updated')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isUpdatingImage = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update chat photo: $e')),
       );
     }
   }
@@ -1432,12 +1519,21 @@ class _ConversationScreenState extends State<ConversationScreen> {
         height: 80,
         title: Row(
           children: [
-            _AvatarStack(
-              avatarUrls: widget.avatarUrls,
-              size: 36,
-              isGroup: widget.avatarUrls.length > 1,
-              online: widget.online,
-            ),
+            _isUpdatingImage
+                ? const SizedBox(
+                    height: 36,
+                    width: 36,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : _AvatarStack(
+                    avatarUrls: _avatarUrls,
+                    size: 36,
+                    isGroup: _avatarUrls.length > 1,
+                    online: widget.online,
+                  ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1465,8 +1561,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit, color: Colors.white),
-            onPressed: _showRenameChatDialog,
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: _showEditChatOptions,
           ),
         ],
       ),

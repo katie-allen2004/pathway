@@ -5,6 +5,8 @@ import 'package:pathway/features/profile/data/profile_repository.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -161,6 +163,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final cardBorderColor = a11y.highContrast
+      ? Colors.black
+      : cs.outline.withValues(alpha: 0.18);
+
+    final helperColor = a11y.highContrast
+      ? Colors.black
+      : cs.onSurface.withValues(alpha: 0.72);
+
+    final titleColor = a11y.highContrast ? Colors.black : cs.onSurface;
+
     return Scaffold(
       appBar: PathwayAppBar(
         height: 100,
@@ -168,15 +185,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
         title: Padding(
           padding: EdgeInsets.only(top: 2),
           child: Text(
-                    'Edit profile information',                   
-                  ),
+            'Edit profile information',  
+            style: theme.appBarTheme.titleTextStyle,                 
             ),
+          ),
       ),
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: AppSpacing.page,
             children: [
               Center(
                 child: Stack(
@@ -184,14 +202,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 44,
+                      backgroundColor: a11y.highContrast
+                          ? Colors.white
+                          : cs.surfaceContainerHighest,
                       backgroundImage: _avatarProvider(),
+                      child: _avatarProvider() == null
+                          ? Icon(
+                              Icons.person_rounded,
+                              size: 44,
+                              color: a11y.highContrast
+                                  ? Colors.black
+                                  : cs.onSurface.withValues(alpha: 0.7),
+                            )
+                          : null,
                     ),
                     Material(
                       shape: const CircleBorder(),
-                      color: AppColors.primary,
+                      color: a11y.highContrast ? Colors.black : cs.primary,
                       child: IconButton(
-                        icon: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+                        icon: Icon(
+                          Icons.camera_alt_rounded, 
+                          color: a11y.highContrast ? Colors.white : cs.onPrimary, 
+                          size: 18
+                        ),
                         onPressed: _isSaving ? null : _pickProfilePhoto,
+                        tooltip: 'Change profile photo',
                       ),
                     ),
                   ],
@@ -200,12 +235,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 18),
 
               Card(
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  side: BorderSide(
+                    color: cardBorderColor,
+                    width: a11y.highContrast ? 2 : 1,
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Name', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Name',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _nameCtrl,
@@ -223,12 +272,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
 
               Card(
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  side: BorderSide(
+                    color: cardBorderColor,
+                    width: a11y.highContrast ? 2 : 1,
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Password', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Password',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _currentPasswordCtrl,
@@ -255,11 +318,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         validator: _validatePasswordConfirm,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Leave password fields blank to keep your current password',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-
-                      )
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: helperColor,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -268,12 +332,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
 
               Card(
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  side: BorderSide(
+                    color: cardBorderColor,
+                    width: a11y.highContrast ? 2 : 1,
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Accessibility tags', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Accessibility tags',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -281,9 +359,42 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         children: _tags.entries.map((entry) {
                           final label = entry.key;
                           final selected = entry.value;
+
+                          final selectedColor = a11y.highContrast
+                            ? Colors.black
+                            : cs.primary;
+
+                          final unselectedBorder = a11y.highContrast
+                            ? Colors.black
+                            : cs.primary.withValues(alpha: 0.35);
+
+                          final unselectedBackground = a11y.highContrast
+                            ? Colors.white
+                            : cs.surface;
+
+                          final unselectedText = a11y.highContrast
+                            ? Colors.black
+                            : cs.onSurface;
+
                           return FilterChip(
                             label: Text(label),
                             selected: selected,
+                            selectedColor: selectedColor,
+                            checkmarkColor: 
+                              a11y.highContrast ? Colors.white : cs.onPrimary,
+                            backgroundColor: unselectedBackground,
+                            side: BorderSide(
+                              color: selected ? selectedColor : unselectedBorder,
+                              width: a11y.highContrast ? 1.5 : 1,
+                            ),
+                            labelStyle: theme.textTheme.bodySmall?.copyWith(
+                              color: selected
+                                ? (a11y.highContrast
+                                  ? Colors.white
+                                  : cs.primary)
+                                : unselectedText,
+                              fontWeight: FontWeight.w600,
+                            ),
                             onSelected: _isSaving
                               ? null
                               : (v) => setState(() => _tags[label] = v),
@@ -292,10 +403,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
 
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Choose what you\'re comfortable sharing.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      )
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: helperColor,
+                      ),
+                      ),
                     ],
                   ),
                 ),
@@ -308,14 +421,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        a11y.highContrast ? Colors.black : cs.primary,
+                    foregroundColor:
+                        a11y.highContrast ? Colors.white : cs.onPrimary,
+                  ),
                   child: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: a11y.highContrast
+                                ? Colors.white
+                                : cs.onPrimary,
+                        ),
                     )
-                    : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w700)),
+                    : Text(
+                        'Save changes', 
+                        style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: a11y.highContrast
+                                ? Colors.white
+                                : cs.onPrimary,
+                        ),
                 ),
+              ),
               ),
             ],
           ),

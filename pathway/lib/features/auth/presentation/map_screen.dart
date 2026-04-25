@@ -1701,7 +1701,7 @@ class _MapScreenState extends State<MapScreen> {
                     child: Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: a11y.highContrast ? Colors.black : Colors.white,
+                        color: a11y.darkMode ? Colors.black : Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: a11y.highContrast
                             ? Border.all(color: Colors.white, width: 2)
@@ -1770,36 +1770,29 @@ class _MapScreenState extends State<MapScreen> {
                                       children: [
                                         Text(
                                           _selectedVenue!.name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                          style: theme.textTheme.labelSmall?.copyWith(
                                             fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: cs.onSurface, 
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         Text(
-                                          _selectedVenue!.addressLine1 ??
-                                              "No address listed",
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 13,
-                                          ),
+                                          _selectedVenue!.addressLine1 ?? "No address listed",
+                                          style: TextStyle(color: a11y.highContrast ? Colors.black : Colors.grey[600], fontSize: 13),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 8),
                                         Row(
                                           children: [
-                                            Icon(
-                                              Icons.accessible,
-                                              size: 16,
-                                              color: Colors.green[700],
-                                            ),
+                                            Icon(Icons.accessible, size: 16, color: a11y.highContrast ? Colors.black : Colors.green[700]),
                                             const SizedBox(width: 4),
                                             Text(
                                               "${_selectedVenue!.tags.length} Features",
                                               style: TextStyle(
-                                                color: Colors.green[700],
+                                                color: a11y.highContrast ? Colors.black : Colors.green[700],
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 13,
                                               ),
@@ -1809,11 +1802,7 @@ class _MapScreenState extends State<MapScreen> {
                                       ],
                                     ),
                                   ),
-                                  const Icon(
-                                    Icons.arrow_forward_ios,
-                                    size: 18,
-                                    color: Colors.grey,
-                                  ),
+                                  Icon(Icons.arrow_forward_ios, size: 18, color: a11y.highContrast ? Colors.black : Colors.grey),
                                 ],
                               ),
                             ),

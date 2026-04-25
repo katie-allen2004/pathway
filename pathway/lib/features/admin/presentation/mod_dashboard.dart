@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+
 import 'mod_decision_log.dart';
-import 'package:pathway/features/venues/presentation/pages/venue_suggestions_page.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
+import 'package:pathway/core/theme/theme.dart';
 
 class ModeratorDashboard extends StatefulWidget {
   const ModeratorDashboard({super.key});
@@ -47,15 +50,35 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
   }
 
   Widget _buildSuggestionCard(Map<String, dynamic> suggestion, bool isHistory) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final status = suggestion['status']?.toString().toLowerCase() ?? 'pending';
     final venueId = suggestion['venue_id'];
     final fieldName = suggestion['field_name']?.toString() ?? 'Unknown';
     final proposedValue = suggestion['proposed_value']?.toString() ?? '';
     final createdAt = suggestion['created_at']?.toString();
 
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
+    final mutedColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.72);
+
     return Card(
+      color: cardColor,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: borderColor,
+          width: a11y.highContrast ? 2 : 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -68,9 +91,11 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                   isHistory
                       ? "Past suggestion decision"
                       : "New venue suggestion",
-                  style: TextStyle(
-                    color: isHistory ? Colors.grey : Colors.orange,
-                    fontWeight: FontWeight.bold,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: isHistory
+                        ? mutedColor
+                        : (a11y.highContrast ? Colors.black : Colors.orange),
+                    fontWeight: FontWeight.w700,
                     fontSize: 10,
                   ),
                 ),
@@ -85,33 +110,39 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
             const SizedBox(height: 6),
             Text(
               "Field: ${_prettySuggestionField(fieldName)}",
-              style: const TextStyle(
-                color: Colors.black87,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: a11y.highContrast ? Colors.black : cs.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               "Suggested value:",
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: mutedColor,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               proposedValue.isEmpty ? 'No value provided' : proposedValue,
-              style: const TextStyle(fontSize: 14),
+              style: theme.textTheme.bodyMedium,
             ),
             if (createdAt != null) ...[
               const SizedBox(height: 8),
               Text(
                 "Submitted: $createdAt",
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: mutedColor,
+                ),
               ),
             ],
-            const Divider(height: 24),
+            Divider(
+              height: 24,
+              color: a11y.highContrast
+                  ? Colors.black
+                  : cs.outline.withValues(alpha: 0.18),
+            ),
             if (!isHistory) ...[
               Row(
                 children: [
@@ -126,7 +157,8 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                     child: ElevatedButton(
                       onPressed: () => _approveSuggestion(suggestion),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor:
+                            a11y.highContrast ? Colors.black : Colors.green,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text("Approve"),
@@ -255,13 +287,31 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
     Map<String, dynamic> venue,
     String status,
   ) async {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.read<AccessibilityController>().settings;
+
     final notesController = TextEditingController();
 
     if (status == 'rejected') {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text("Reject ${venue['name']}"),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.card),
+            side: BorderSide(
+              color: a11y.highContrast
+                  ? Colors.black
+                  : cs.outline.withValues(alpha: 0.2),
+              width: a11y.highContrast ? 2 : 1,
+            ),
+          ),
+          title: Text(
+            "Reject ${venue['name']}",
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           content: TextField(
             controller: notesController,
             autofocus: true,
@@ -279,7 +329,10 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: a11y.highContrast ? Colors.black : Colors.red,
+                foregroundColor: Colors.white,
+              ),
               child: const Text(
                 "Confirm Rejection",
                 style: TextStyle(color: Colors.white),
@@ -336,10 +389,14 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
   }
 
   void _showSnackBar(String message, {required bool isError}) {
+    final a11y = context.read<AccessibilityController>().settings;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        backgroundColor: isError 
+          ? (a11y.highContrast ? Colors.black : Colors.redAccent)
+          : (a11y.highContrast ? Colors.black : Colors.green),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -348,6 +405,14 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final tabBg = a11y.highContrast ? Colors.white : cs.surface;
+    final tabSelectedBg = a11y.highContrast ? Colors.black : cs.primary;
+    final tabSelectedFg = Colors.white;
+    final tabUnselectedFg = a11y.highContrast ? Colors.black : cs.primary;
+    final tabBorder = a11y.highContrast ? Colors.black : cs.primary;
 
     return DefaultTabController(
       length: 6, // tabs
@@ -367,18 +432,15 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
           children: [
             Material(
               color: theme.scaffoldBackgroundColor,
-              child: const TabBar(
-                isScrollable: true,
-                indicatorColor: Colors.deepPurple,
-                labelColor: Colors.deepPurple,
-                tabs: [
-                  Tab(text: 'Venues Pending'),
-                  Tab(text: 'Venue History'),
-                  Tab(text: 'Suggestions Pending'),
-                  Tab(text: 'Suggestion History'),
-                  Tab(text: 'Reports Pending'),
-                  Tab(text: 'Report History'),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: _ModeratorTabs(
+                  backgroundColor: tabBg,
+                  selectedBackgroundColor: tabSelectedBg,
+                  selectedForegroundColor: tabSelectedFg,
+                  unselectedForegroundColor: tabUnselectedFg,
+                  borderColor: tabBorder,
+                ),
               ),
             ),
             Expanded(
@@ -442,6 +504,14 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
   }
 
   Widget _buildEmptyState([String message = "No records found"]) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final muted = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.68);
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -449,14 +519,16 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
           Icon(
             Icons.assignment_turned_in_outlined,
             size: 64,
-            color: Colors.grey[300],
+            color: a11y.highContrast
+                ? Colors.black
+                : cs.onSurface.withValues(alpha: 0.35),
           ),
           const SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontWeight: FontWeight.bold,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: muted,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -466,11 +538,31 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
 
   // venue card
   Widget _buildVenueCard(Map<String, dynamic> venue, bool isHistory) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final status = venue['status'] ?? 'pending';
 
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
+    final mutedColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.72);
+
     return Card(
+      color: cardColor,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: borderColor,
+          width: a11y.highContrast ? 2 : 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -481,9 +573,11 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
               children: [
                 Text(
                   isHistory ? "Past decision" : "New venue request",
-                  style: TextStyle(
-                    color: isHistory ? Colors.grey : Colors.orange,
-                    fontWeight: FontWeight.bold,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: isHistory
+                        ? mutedColor
+                        : (a11y.highContrast ? Colors.black : Colors.orange),
+                    fontWeight: FontWeight.w700,
                     fontSize: 10,
                   ),
                 ),
@@ -493,11 +587,15 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
             const SizedBox(height: 8),
             Text(
               venue['name'] ?? 'Unnamed',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             Text(
               "${venue['city'] ?? ''}",
-              style: const TextStyle(color: Colors.grey),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: mutedColor,
+              ),
             ),
 
             if (isHistory && venue['moderator_notes'] != null) ...[
@@ -505,20 +603,31 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: a11y.highContrast
+                      ? Colors.white
+                      : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: a11y.highContrast
+                        ? Colors.black
+                        : cs.outline.withValues(alpha: 0.18),
+                  ),
                 ),
                 child: Text(
                   "Notes: ${venue['moderator_notes']}",
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: theme.textTheme.bodySmall?.copyWith(
                     fontStyle: FontStyle.italic,
                   ),
                 ),
               ),
             ],
 
-            const Divider(height: 24),
+            Divider(
+              height: 24,
+              color: a11y.highContrast
+                  ? Colors.black
+                  : cs.outline.withValues(alpha: 0.18),
+            ),
 
             // approve/reject
             Row(
@@ -536,7 +645,8 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                   child: ElevatedButton(
                     onPressed: () => _handleVenueAction(venue, 'approved'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor:
+                          a11y.highContrast ? Colors.black : Colors.green,
                       foregroundColor: Colors.white,
                     ),
                     child: Text(
@@ -571,14 +681,34 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final String status =
         report['status']?.toString().toLowerCase() ?? 'pending';
     final bool isPending = status == 'pending';
 
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
+    final mutedColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.72);
+
     return Card(
+      color: cardColor,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: borderColor,
+          width: a11y.highContrast ? 2 : 1,
+        ),
+      ),
+      elevation: a11y.highContrast ? 0 : 2,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -591,9 +721,9 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                   future: _getDisplayName(report['reported_user_id'] ?? ''),
                   builder: (context, snapshot) => Text(
                     "REPORTED: ${snapshot.data ?? '...'}",
-                    style: const TextStyle(
-                      color: Colors.blueGrey,
-                      fontWeight: FontWeight.bold,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: a11y.highContrast ? Colors.black : Colors.blueGrey,
+                      fontWeight: FontWeight.w700,
                       fontSize: 11,
                     ),
                   ),
@@ -604,19 +734,30 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
             const SizedBox(height: 12),
             Text(
               "${report['reason']}",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               "${report['description'] ?? 'No details provided.'}",
-              style: const TextStyle(color: Colors.black54, fontSize: 14),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: mutedColor,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               "Type: ${report['target_type'] ?? 'Unknown'}",
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: mutedColor,
+              ),
             ),
-            const Divider(height: 32),
+            Divider(
+              height: 32,
+              color: a11y.highContrast
+                  ? Colors.black
+                  : cs.outline.withValues(alpha: 0.18),
+            ),
 
             if (isPending) ...[
               Row(
@@ -632,7 +773,8 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                     child: ElevatedButton(
                       onPressed: () => _openModerationDialog(report),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
+                        backgroundColor:
+                            a11y.highContrast ? Colors.black : Colors.redAccent,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text("Take Action"),
@@ -657,38 +799,130 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
   }
 }
 
+class _ModeratorTabs extends StatelessWidget {
+  final Color backgroundColor;
+  final Color selectedBackgroundColor;
+  final Color selectedForegroundColor;
+  final Color unselectedForegroundColor;
+  final Color borderColor;
+
+  const _ModeratorTabs({
+    required this.backgroundColor,
+    required this.selectedBackgroundColor,
+    required this.selectedForegroundColor,
+    required this.unselectedForegroundColor,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = DefaultTabController.of(context);
+    final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    if (controller == null) return const SizedBox.shrink();
+
+    const labels = [
+      'Venues Pending',
+      'Venue History',
+      'Suggestions Pending',
+      'Suggestion History',
+      'Reports Pending',
+      'Report History',
+    ];
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final currentIndex = controller.index;
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List.generate(labels.length, (index) {
+              final selected = index == currentIndex;
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: index == labels.length - 1 ? 0 : 8,
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => controller.animateTo(index),
+                  child: AnimatedContainer(
+                    duration: a11y.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          selected ? selectedBackgroundColor : backgroundColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: borderColor,
+                        width: a11y.highContrast ? 2 : 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        labels[index],
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: selected
+                              ? selectedForegroundColor
+                              : unselectedForegroundColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _StatusBadge extends StatelessWidget {
   final String status;
   const _StatusBadge({required this.status});
 
   @override
   Widget build(BuildContext context) {
+    final a11y = context.watch<AccessibilityController>().settings;
+
     Color color;
     switch (status.toLowerCase()) {
       case 'pending':
-        color = Colors.orange;
+        color = a11y.highContrast ? Colors.black : Colors.orange;
         break;
       case 'resolved':
-        color = Colors.red;
+        color = a11y.highContrast ? Colors.black : Colors.red;
         break;
       case 'dismissed':
-        color = Colors.green;
+        color = a11y.highContrast ? Colors.black : Colors.green;
         break;
       case 'approved':
-        color = Colors.blue;
+        color = a11y.highContrast ? Colors.black : Colors.blue;
         break;
       case 'rejected':
-        color = Colors.redAccent;
+        color = a11y.highContrast ? Colors.black : Colors.redAccent;
         break;
       default:
-        color = Colors.grey;
+        color = a11y.highContrast ? Colors.black : Colors.grey;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: a11y.highContrast ? Colors.white : color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color),
       ),
       child: Text(
         status.toUpperCase(),

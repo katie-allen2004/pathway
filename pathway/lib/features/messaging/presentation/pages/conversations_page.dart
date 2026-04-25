@@ -1232,7 +1232,10 @@ class ConversationScreen extends StatefulWidget {
 
 class _ConversationScreenState extends State<ConversationScreen> {
   final _supabase = Supabase.instance.client;
+  final _messagingService = MessagingService();
   final TextEditingController _messageController = TextEditingController();
+
+  late String _title;
 
   bool _isLoading = true;
   bool _isSending = false;
@@ -1243,6 +1246,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   void initState() {
     super.initState();
+    _title = widget.title;
     _loadMessages();
   }
 
@@ -1250,6 +1254,65 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void dispose() {
     _messageController.dispose();
     super.dispose();
+  }
+
+  // show dialog to rename chat
+  Future<void> _showRenameChatDialog() async {
+    final controller = TextEditingController(text: _title);
+
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Rename chat'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Chat name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, controller.text.trim());
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (newTitle == null || newTitle.isEmpty) return;
+
+    final conversationId = int.tryParse(widget.conversationId);
+    if (conversationId == null) return;
+
+    try {
+      await _messagingService.updateConversationTitle(
+        conversationId: conversationId,
+        title: newTitle,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _title = newTitle;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not rename chat: $e')),
+      );
+    }
   }
 
   Future<int?> _getCurrentPathwayUserId() async {
@@ -1294,12 +1357,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
         final senderUserId = row['sender_user_id'] as int?;
         return _Message(
           id: row['message_id'].toString(),
-          author: senderUserId == myUserId ? 'You' : widget.title,
+          author: senderUserId == myUserId ? 'You' : _title,
           authorId: senderUserId?.toString() ?? '',
           text: row['body'] as String? ?? '',
           createdAt:
               DateTime.tryParse(row['created_at'] as String? ?? '') ??
-              DateTime.now(),
+                  DateTime.now(),
           mine: senderUserId == myUserId,
         );
       }).toList();
@@ -1331,14 +1394,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
 
     try {
-      await _supabase
-          .schema('pathway')
-          .from('messages')
-          .insert({
-            'conversation_id': conversationId,
-            'sender_user_id': _myPathwayUserId,
-            'body': text,
-          });
+      await _supabase.schema('pathway').from('messages').insert({
+        'conversation_id': conversationId,
+        'sender_user_id': _myPathwayUserId,
+        'body': text,
+      });
 
       _messageController.clear();
       await _loadMessages();
@@ -1379,26 +1439,36 @@ class _ConversationScreenState extends State<ConversationScreen> {
               online: widget.online,
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                Text(
-                  '${_messages.length} messages',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.white70,
+                  Text(
+                    '${_messages.length} messages',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.white),
+            onPressed: _showRenameChatDialog,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -1438,7 +1508,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   if (!m.mine)
                                     Text(
                                       m.author,
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -1483,7 +1554,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     child: TextField(
                       controller: _messageController,
                       decoration: InputDecoration(
-                        hintText: 'Message ${widget.title}',
+                        hintText: 'Message $_title',
                         filled: true,
                         fillColor: Colors.grey.shade100,
                         contentPadding: const EdgeInsets.symmetric(

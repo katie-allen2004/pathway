@@ -224,7 +224,7 @@ class MessagingService {
     );
   }
 
-      Future<List<Map<String, dynamic>>> getFollowedUsers() async {
+    Future<List<Map<String, dynamic>>> getFollowedUsers() async {
     final me = await getCurrentPathwayUserId();
     if (me == null) return [];
 
@@ -300,5 +300,20 @@ class MessagingService {
         'avatar_url': profile?['avatar_url'],
       };
     }).toList();
+  }
+  // update conversation title
+  Future<void> updateConversationTitle({
+    required int conversationId,
+    required String title,
+  }) async {
+    await _supabase
+        .schema('pathway')
+        .from('conversations')
+        .update({
+          'title': title.trim(),
+        })
+        .eq('conversation_id', conversationId)
+        .select()
+        .single();
   }
 }

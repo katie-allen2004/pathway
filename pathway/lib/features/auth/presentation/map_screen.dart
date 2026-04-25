@@ -1277,6 +1277,15 @@ class _MapScreenState extends State<MapScreen> {
     final a11y = context.watch<AccessibilityController>().settings;
     double cardOffset = (_selectedVenue != null) ? 140 : 0;
     return Scaffold(
+      appBar: AppBar(
+  title: const Text('Map'),
+  leading: Navigator.canPop(context) 
+      ? IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ) 
+      : null, 
+),
       floatingActionButton: AnimatedPadding(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -1466,7 +1475,7 @@ class _MapScreenState extends State<MapScreen> {
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  bottom: 150 + (_selectedVenue != null ? 140 : 0),
+                  bottom: 210 + (_selectedVenue != null ? 140 : 0),
                   right: 15,
                   child: Card(
                     elevation: 2,
@@ -1711,7 +1720,7 @@ class _MapScreenState extends State<MapScreen> {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () {
-                              context.push('map/venue/${_selectedVenue!.id}');
+                              context.push('/map/venue/${_selectedVenue!.id}');
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),

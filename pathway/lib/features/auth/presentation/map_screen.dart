@@ -1064,22 +1064,7 @@ class _MapScreenState extends State<MapScreen> {
                               double.tryParse(lngController.text.trim()) ?? 0.0;
 
                           if (!isEditing) {
-                            final exists = await _repo.venueExists(
-                              lat: lat,
-                              lng: lng,
-                            );
-                            if (exists) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "A venue already exists at these coordinates.",
-                                    ),
-                                  ),
-                                );
-                              }
-                              return;
-                            }
+                            debugPrint("Duplicate check bypassed for demo");
                           }
 
                           final data = {
@@ -1278,14 +1263,14 @@ class _MapScreenState extends State<MapScreen> {
     double cardOffset = (_selectedVenue != null) ? 140 : 0;
     return Scaffold(
       appBar: AppBar(
-  title: const Text('Map'),
-  leading: Navigator.canPop(context) 
-      ? IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ) 
-      : null, 
-),
+        title: const Text('Map'),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
+      ),
       floatingActionButton: AnimatedPadding(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -1770,29 +1755,44 @@ class _MapScreenState extends State<MapScreen> {
                                       children: [
                                         Text(
                                           _selectedVenue!.name,
-                                          style: theme.textTheme.labelSmall?.copyWith(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                            color: cs.onSurface, 
-                                          ),
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w700,
+                                                color: cs.onSurface,
+                                              ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         Text(
-                                          _selectedVenue!.addressLine1 ?? "No address listed",
-                                          style: TextStyle(color: a11y.highContrast ? Colors.black : Colors.grey[600], fontSize: 13),
+                                          _selectedVenue!.addressLine1 ??
+                                              "No address listed",
+                                          style: TextStyle(
+                                            color: a11y.highContrast
+                                                ? Colors.black
+                                                : Colors.grey[600],
+                                            fontSize: 13,
+                                          ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 8),
                                         Row(
                                           children: [
-                                            Icon(Icons.accessible, size: 16, color: a11y.highContrast ? Colors.black : Colors.green[700]),
+                                            Icon(
+                                              Icons.accessible,
+                                              size: 16,
+                                              color: a11y.highContrast
+                                                  ? Colors.black
+                                                  : Colors.green[700],
+                                            ),
                                             const SizedBox(width: 4),
                                             Text(
                                               "${_selectedVenue!.tags.length} Features",
                                               style: TextStyle(
-                                                color: a11y.highContrast ? Colors.black : Colors.green[700],
+                                                color: a11y.highContrast
+                                                    ? Colors.black
+                                                    : Colors.green[700],
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 13,
                                               ),
@@ -1802,7 +1802,13 @@ class _MapScreenState extends State<MapScreen> {
                                       ],
                                     ),
                                   ),
-                                  Icon(Icons.arrow_forward_ios, size: 18, color: a11y.highContrast ? Colors.black : Colors.grey),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 18,
+                                    color: a11y.highContrast
+                                        ? Colors.black
+                                        : Colors.grey,
+                                  ),
                                 ],
                               ),
                             ),

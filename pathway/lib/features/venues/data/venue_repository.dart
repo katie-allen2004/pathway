@@ -330,9 +330,29 @@ class VenueRepository {
         }
       }
 
+      // Fetch vote data for all reviews
+      final reviewIds = reviewRows
+          .map((r) => (r['review_id'] as num?)?.toInt())
+          .whereType<int>()
+          .toList();
+      
+      final voteDataByReview = await fetchVoteDataForReviews(reviewIds);
+
       return reviewRows.map((row) {
         final copy = Map<String, dynamic>.from(row);
         copy['username'] = usernameByUserId[row['user_id']?.toString()];
+        
+        // Add vote data to the review
+        final reviewId = (row['review_id'] as num?)?.toInt();
+        if (reviewId != null && voteDataByReview.containsKey(reviewId)) {
+          final voteData = voteDataByReview[reviewId]!;
+          copy['helpful_count'] = voteData['helpful_count'];
+          copy['outdated_count'] = voteData['outdated_count'];
+          copy['inaccurate_count'] = voteData['inaccurate_count'];
+          copy['total_votes'] = voteData['total_votes'];
+          copy['current_user_vote'] = voteData['current_user_vote'];
+        }
+        
         return ReviewModel.fromMap(copy);
       }).toList();
     } catch (e) {
@@ -381,15 +401,15 @@ class VenueRepository {
 
     await _client.schema('pathway').from('venue_reviews').insert({
       'venue_id': venueId,
-      'user_id': user.id,
+      'user_id': user.id,  // Use auth UUID directly
       'rating': rating,
       'review_text': (text ?? '').trim(),
       'is_visible': true,
     });
 
-    // Award badges
+    // Award badges - note: evaluate_user_badges might need UUID or BIGINT depending on implementation
     try {
-      await _client.rpc('evaluate_user_badges', params: {'p_user_id': user.id});
+      await _client.schema('pathway').rpc('evaluate_user_badges', params: {'p_user_id': user.id});
     } catch (e) {
       debugPrint('evaluate_user_badges failed: $e');
     }
@@ -860,4 +880,206 @@ class VenueRepository {
       return "[Error loading content]";
     }
   }
+
+  // ---------------------------
+  // Review Voting
+  // ---------------------------
+
+  /// Submit or update a vote on a review
+  /// voteType: 'helpful', 'outdated', or 'inaccurate'
+  /// Returns a map with success status and message
+  Future<Map<String, dynamic>> submitReviewVote({
+    required int reviewId,
+    required String voteType,
+  }) async {
+    try {
+      // Get current user
+      final authUser = _client.auth.currentUser;
+      if (authUser == null) {
+        return {
+          'success': false,
+          'error': 'not_authenticated',
+          'message': 'You must be logged in to vote.',
+        };
+      }
+
+      // Call the database function with auth UUID directly
+      final result = await _client.schema('pathway').rpc('submit_review_vote', params: {
+        'p_review_id': reviewId,
+        'p_user_id': authUser.id,  // Pass UUID directly
+        'p_vote_type': voteType,
+      });
+
+      // Result is already a Map from JSONB return
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      
+      return Map<String, dynamic>.from(result as Map);
+    } catch (e) {
+      debugPrint('Error in submitReviewVote: $e');
+      return {
+        'success': false,
+        'error': 'exception',
+        'message': 'An error occurred while submitting your vote. Error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Fetch vote counts and current user's vote for a single review
+  Future<Map<String, dynamic>> fetchVoteDataForReview(int reviewId) async {
+    try {
+      final authUser = _client.auth.currentUser;
+      
+      // Get vote counts
+      final countsData = await _client
+          .schema('pathway')
+          .from('review_vote_counts')
+          .select()
+          .eq('review_id', reviewId)
+          .maybeSingle();
+
+      final counts = countsData ?? {
+        'helpful_count': 0,
+        'outdated_count': 0,
+        'inaccurate_count': 0,
+        'total_votes': 0,
+      };
+
+      // Get current user's vote if authenticated
+      String? currentUserVote;
+      if (authUser != null) {
+        final voteData = await _client
+            .schema('pathway')
+            .from('review_votes')
+            .select('vote_type')
+            .eq('review_id', reviewId)
+            .eq('user_id', authUser.id)  // Use auth UUID directly
+            .maybeSingle();
+
+        currentUserVote = voteData?['vote_type']?.toString();
+      }
+
+      return {
+        'helpful_count': counts['helpful_count'] ?? 0,
+        'outdated_count': counts['outdated_count'] ?? 0,
+        'inaccurate_count': counts['inaccurate_count'] ?? 0,
+        'total_votes': counts['total_votes'] ?? 0,
+        'current_user_vote': currentUserVote,
+      };
+    } catch (e) {
+      debugPrint('Error in fetchVoteDataForReview: $e');
+      return {
+        'helpful_count': 0,
+        'outdated_count': 0,
+        'inaccurate_count': 0,
+        'total_votes': 0,
+        'current_user_vote': null,
+      };
+    }
+  }
+
+  /// Fetch vote data for multiple reviews (batch operation)
+  /// Returns a map of reviewId -> vote data
+  Future<Map<int, Map<String, dynamic>>> fetchVoteDataForReviews(
+    List<int> reviewIds,
+  ) async {
+    if (reviewIds.isEmpty) return {};
+
+    try {
+      final authUser = _client.auth.currentUser;
+
+      // Fetch all vote counts for these reviews
+      final countsData = await _client
+          .schema('pathway')
+          .from('review_vote_counts')
+          .select()
+          .inFilter('review_id', reviewIds);
+
+      final countsRows = (countsData as List).cast<Map<String, dynamic>>();
+      final countsByReview = <int, Map<String, dynamic>>{};
+      
+      for (final row in countsRows) {
+        final reviewId = (row['review_id'] as num).toInt();
+        countsByReview[reviewId] = {
+          'helpful_count': row['helpful_count'] ?? 0,
+          'outdated_count': row['outdated_count'] ?? 0,
+          'inaccurate_count': row['inaccurate_count'] ?? 0,
+          'total_votes': row['total_votes'] ?? 0,
+        };
+      }
+
+      // Fetch current user's votes if authenticated
+      if (authUser != null) {
+        final userVotesData = await _client
+            .schema('pathway')
+            .from('review_votes')
+            .select('review_id, vote_type')
+            .eq('user_id', authUser.id)  // Use auth UUID directly
+            .inFilter('review_id', reviewIds);
+
+        final userVotesRows =
+            (userVotesData as List).cast<Map<String, dynamic>>();
+        
+        for (final row in userVotesRows) {
+          final reviewId = (row['review_id'] as num).toInt();
+          if (countsByReview.containsKey(reviewId)) {
+            countsByReview[reviewId]!['current_user_vote'] =
+                row['vote_type']?.toString();
+          }
+        }
+      }
+
+      // Fill in default values for reviews with no votes
+      for (final reviewId in reviewIds) {
+        if (!countsByReview.containsKey(reviewId)) {
+          countsByReview[reviewId] = {
+            'helpful_count': 0,
+            'outdated_count': 0,
+            'inaccurate_count': 0,
+            'total_votes': 0,
+            'current_user_vote': null,
+          };
+        }
+      }
+
+      return countsByReview;
+    } catch (e) {
+      debugPrint('Error in fetchVoteDataForReviews: $e');
+      return {};
+    }
+  }
+
+  /// Calculate and fetch the weighted accessibility score for a venue
+  Future<double> fetchVenueWeightedScore(int venueId) async {
+    try {
+      final result = await _client.schema('pathway').rpc(
+        'calculate_venue_weighted_score',
+        params: {'p_venue_id': venueId},
+      );
+
+      return (result as num?)?.toDouble() ?? 0.0;
+    } catch (e) {
+      debugPrint('Error in fetchVenueWeightedScore: $e');
+      return 0.0;
+    }
+  }
+
+  /// Fetch flagged reviews for moderation
+  Future<List<Map<String, dynamic>>> fetchFlaggedReviews() async {
+    try {
+      final data = await _client
+          .schema('pathway')
+          .from('flagged_reviews')
+          .select()
+          .order('outdated_count', ascending: false)
+          .order('inaccurate_count', ascending: false);
+
+      return (data as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('Error in fetchFlaggedReviews: $e');
+      return [];
+    }
+  }
 }
+

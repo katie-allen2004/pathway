@@ -16,6 +16,8 @@ This folder contains the SQL scripts for creating the Pathway database structure
 8. `08_messaging.sql` — conversations + members + messages
 9. `09_notifications.sql` — notifications table
 10. `10_reporting_badges.sql` — user_reports + badges + user_badges (includes starter badge seeds)
+11. `11_user_connect.sql` — user connections/relationships
+12. `12_review_votes.sql` — review credibility voting system (helpful/outdated/inaccurate votes)
 
 ---
 

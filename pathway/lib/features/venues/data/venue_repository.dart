@@ -8,6 +8,7 @@ import 'package:pathway/features/gamification/data/badge_tab_data.dart';
 import 'venue_edit_history_model.dart';
 import 'dart:typed_data';
 import 'package:pathway/features/venues/data/venue_image_model.dart';
+import 'package:pathway/features/venues/data/venue_draft_model.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -499,6 +500,108 @@ class VenueRepository {
   // ---------------------------
   // Moderation Logic
   // ---------------------------
+  Future<String> saveVenueDraft({
+    String? draftId,
+    String? venueName,
+    String? description,
+    String? addressLine1,
+    String? addressLine2,
+    String? city,
+    String? state,
+    String? zipCode,
+    String? category,
+    String? imagePath,
+    String? operatingHours,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    final data = {
+      'user_id': user.id,
+      'venue_name': venueName,
+      'description': description,
+      'address_line1': addressLine1,
+      'address_line2': addressLine2,
+      'city': city,
+      'state': state,
+      'zip_code': zipCode,
+      'category': category,
+      'image_path': imagePath,
+      'operating_hours': operatingHours,
+      'status': 'draft',
+    };
+
+    if (draftId == null) {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_drafts')
+          .insert(data)
+          .select('draft_id')
+          .single();
+
+      return res['draft_id'].toString();
+    } else {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_drafts')
+          .update(data)
+          .eq('draft_id', draftId)
+          .select('draft_id')
+          .single();
+
+      return res['draft_id'].toString();
+    }
+  }
+
+  Future<void> deleteVenueDraft(String draftId) async {
+    try {
+      await _client
+          .schema('pathway')
+          .from('venue_drafts')
+          .delete()
+          .eq('draft_id', draftId);
+    } catch (e) {
+      debugPrint('Error deleting draft: $e');
+    }
+  }
+
+  Future<List<VenueDraftModel>> fetchUserDrafts() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_drafts')
+          .select()
+          .eq('user_id', user.id)
+          .order('updated_at', ascending: false);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(VenueDraftModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error fetching drafts: $e');
+      return [];
+    }
+  }
+
+  Future<VenueDraftModel?> fetchDraftById(String draftId) async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_drafts')
+          .select()
+          .eq('draft_id', draftId)
+          .maybeSingle();
+
+      if (res == null) return null;
+      return VenueDraftModel.fromMap(res);
+    } catch (e) {
+      debugPrint('Error fetching draft: $e');
+      return null;
+    }
+  }
+
   Future<void> submitVenueSuggestion({
     required int venueId,
     required String fieldName,

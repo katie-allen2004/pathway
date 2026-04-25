@@ -24,46 +24,8 @@ import 'package:pathway/features/profile/presentation/pages/other_user_profile.d
 import 'package:pathway/features/profile/presentation/pages/privacy_policy_page.dart'; 
 import 'package:pathway/features/profile/presentation/pages/security_settings_page.dart'; 
 import 'package:pathway/features/admin/presentation/mod_dashboard.dart'; 
-import 'package:pathway/features/profile/presentation/widgets/badges_section.dart';
 
-
-class BadgesScreen extends StatelessWidget {
-  const BadgesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F1F7),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 56, 24, 28),
-            decoration: const BoxDecoration(color: Color(0xFF4F67D6)),
-            child: const Text(
-              'Badges',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 620),
-                  child: BadgesSection(),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+import 'package:pathway/features/gamification/presentation/pages/badges_page.dart';
 
 class AppRouter {
   AppRouter._();

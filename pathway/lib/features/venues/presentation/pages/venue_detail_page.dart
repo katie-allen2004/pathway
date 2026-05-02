@@ -15,14 +15,12 @@ import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'dart:typed_data';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pathway/features/venues/data/venue_post_model.dart';
 
 class ReviewShareHelper {
   static const String _baseUrl = 'https://pathway.app';
 
-  static String reviewUrl({
-    required int venueId,
-    required ReviewModel review,
-  }) {
+  static String reviewUrl({required int venueId, required ReviewModel review}) {
     return '$_baseUrl/map/venue/$venueId/reviews/${review.id}';
   }
 
@@ -65,7 +63,11 @@ class ReviewShareHelper {
     required String venueName,
     required int venueId,
   }) async {
-    final text = shareText(venueId: venueId, review: review, venueName: venueName);
+    final text = shareText(
+      venueId: venueId,
+      review: review,
+      venueName: venueName,
+    );
 
     try {
       await SharePlus.instance.share(
@@ -122,7 +124,11 @@ class ReviewShareHelper {
                 title: const Text('Copy review link'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await copyReviewLink(context, review: review, venueId: venueId);
+                  await copyReviewLink(
+                    context,
+                    review: review,
+                    venueId: venueId,
+                  );
                 },
               ),
               ListTile(
@@ -143,7 +149,12 @@ class ReviewShareHelper {
                 title: const Text('Share to X'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await shareToX(context, review: review, venueName: venueName, venueId: venueId);
+                  await shareToX(
+                    context,
+                    review: review,
+                    venueName: venueName,
+                    venueId: venueId,
+                  );
                 },
               ),
             ],
@@ -161,8 +172,8 @@ class VenueDetailPage extends StatefulWidget {
   final String? highlightReviewId;
 
   const VenueDetailPage({
-    super.key, 
-    required this.venueId, 
+    super.key,
+    required this.venueId,
     this.initialVenue,
     this.initialTabIndex = 0,
     this.highlightReviewId,
@@ -340,13 +351,13 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                 Icons.arrow_back,
                 color: innerBoxIsScrolled ? cs.onSurface : Colors.white,
               ),
-              onPressed: (){
+              onPressed: () {
                 if (context.canPop()) {
                   context.pop();
                 } else {
                   context.go('/map');
                 }
-              }
+              },
             ),
             backgroundColor: cs.surface,
             foregroundColor: cs.onSurface,
@@ -470,7 +481,11 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       body: TabBarView(
         children: [
           _OverviewTab(venue: venue, onSuggestEdit: _showSuggestEditDialog),
-          _ReviewsTab(venue: venue, onReviewAdded: _refresh, highlightReviewId: widget.highlightReviewId),
+          _ReviewsTab(
+            venue: venue,
+            onReviewAdded: _refresh,
+            highlightReviewId: widget.highlightReviewId,
+          ),
           _PostsTab(venue: venue),
         ],
       ),
@@ -1200,7 +1215,7 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                 ...reviews.map((r) {
                   final badges =
                       _badgesByUser[r.userId] ?? const <BadgeModel>[];
-                  final isHighlighted = 
+                  final isHighlighted =
                       widget.highlightReviewId != null &&
                       r.id.toString() == widget.highlightReviewId;
 
@@ -1318,9 +1333,9 @@ class _ReviewCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isHighlighted
-          ? Colors.amber.withValues(alpha: 0.12)
-          : (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white)
-              .withValues(alpha: 0.9),
+            ? Colors.amber.withValues(alpha: 0.12)
+            : (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white)
+                  .withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1333,8 +1348,8 @@ class _ReviewCard extends StatelessWidget {
           color: isHighlighted
               ? Colors.amber
               : a11y.highContrast
-                  ? Colors.black
-                  : cs.outline.withValues(alpha: 0.35),
+              ? Colors.black
+              : cs.outline.withValues(alpha: 0.35),
           width: isHighlighted ? 2 : (a11y.highContrast ? 1.5 : 1),
         ),
       ),
@@ -1548,7 +1563,7 @@ class _MiniBadgeState extends State<_MiniBadge>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    
+
     final b = widget.badge;
     final baseColor = _parseHexColor(b.colorHex) ?? cs.primary;
 
@@ -1672,13 +1687,207 @@ class _Stars extends StatelessWidget {
   }
 }
 
-class _PostsTab extends StatelessWidget {
+class _PostsTab extends StatefulWidget {
   final VenueModel venue;
   const _PostsTab({required this.venue});
 
   @override
+  State<_PostsTab> createState() => _PostsTabState();
+}
+
+class _PostsTabState extends State<_PostsTab> {
+  final _repo = VenueRepository();
+  late Future<List<VenuePostModel>> _postsFuture;
+  bool _canPost = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _postsFuture = _repo.fetchVenuePosts(widget.venue.id);
+    _loadPermission();
+  }
+
+  Future<void> _loadPermission() async {
+    final canPost = await _repo.canCurrentUserPostForVenue(widget.venue.id);
+    if (!mounted) return;
+    setState(() => _canPost = canPost);
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _postsFuture = _repo.fetchVenuePosts(widget.venue.id);
+    });
+    await _loadPermission();
+  }
+
+  Future<void> _openCreatePostDialog() async {
+    final controller = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create venue post'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Share an update about this venue...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Post'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    try {
+      await _repo.createVenuePost(
+        venueId: widget.venue.id,
+        content: controller.text,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post published.')));
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to publish post: $e')));
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Center(child: Text("Posts coming soon"));
+    return FutureBuilder<List<VenuePostModel>>(
+      future: _postsFuture,
+      builder: (context, snapshot) {
+        final posts = snapshot.data ?? [];
+
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Venue Posts',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  const Spacer(),
+                  if (_canPost)
+                    ElevatedButton.icon(
+                      onPressed: _openCreatePostDialog,
+                      icon: const Icon(Icons.add_comment_outlined, size: 18),
+                      label: const Text('Post'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData)
+                const Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (posts.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Center(
+                    child: Text(
+                      'No posts yet.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                ...posts.map((post) => _VenuePostCard(post: post)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _VenuePostCard extends StatelessWidget {
+  final VenuePostModel post;
+
+  const _VenuePostCard({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateText = post.createdAt == null
+        ? ''
+        : '${post.createdAt!.month}/${post.createdAt!.day}/${post.createdAt!.year}';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.black12.withOpacity(0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.campaign_outlined, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Venue Update',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (dateText.isNotEmpty)
+                Text(
+                  dateText,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            post.content,
+            style: const TextStyle(
+              height: 1.45,
+              fontSize: 14.5,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

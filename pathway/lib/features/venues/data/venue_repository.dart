@@ -9,6 +9,7 @@ import 'venue_edit_history_model.dart';
 import 'dart:typed_data';
 import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'package:pathway/features/venues/data/venue_draft_model.dart';
+import 'package:pathway/features/venues/data/venue_post_model.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -770,6 +771,57 @@ class VenueRepository {
     } catch (e) {
       debugPrint('Error fetching edit history: $e');
       return [];
+    }
+  }
+
+  Future<List<VenuePostModel>> fetchVenuePosts(int venueId) async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_posts')
+          .select()
+          .eq('venue_id', venueId)
+          .order('created_at', ascending: false);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(VenuePostModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error fetching venue posts: $e');
+      return [];
+    }
+  }
+
+  Future<void> createVenuePost({
+    required int venueId,
+    required String content,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    await _client.schema('pathway').from('venue_posts').insert({
+      'venue_id': venueId,
+      'user_id': user.id,
+      'content': content.trim(),
+    });
+  }
+
+  Future<bool> canCurrentUserPostForVenue(int venueId) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venues')
+          .select('venue_id')
+          .eq('venue_id', venueId)
+          .eq('created_by_user_id', user.id)
+          .maybeSingle();
+
+      return res != null;
+    } catch (e) {
+      debugPrint('Error checking posting permission: $e');
+      return false;
     }
   }
 

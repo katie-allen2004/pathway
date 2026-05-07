@@ -16,10 +16,11 @@ import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog
 import 'package:pathway/features/venues/data/venue_edit_history_model.dart';
 import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pathway/features/reviews/presentation/widgets/review_vote_buttons.dart';
+import 'package:pathway/features/reviews/presentation/widgets/flagged_review_banner.dart';
 import 'package:pathway/features/venues/data/venue_post_model.dart';
 import '../../data/venue_overview_generator.dart';
 import '../../../../features/reviews/data/review_moderator.dart';
-
 
 class ReviewShareHelper {
   static const String _baseUrl = 'https://pathway.app';
@@ -1439,6 +1440,9 @@ class _ReviewCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Flagged review banner (shows if review has high negative votes)
+          FlaggedReviewBanner(review: review),
+          
           // NEW: Author row + badges
           Row(
             children: [
@@ -1614,6 +1618,17 @@ class _ReviewCard extends StatelessWidget {
               ),
             ),
           ],
+
+          // Review voting buttons
+          const SizedBox(height: 16),
+          ReviewVoteButtons(
+            review: review,
+            isOwnReview: canManage,
+            onVoteChanged: () {
+              // Optionally trigger a refresh of the reviews list
+              // This is handled by the parent widget through setState
+            },
+          ),
         ],
       ),
     );

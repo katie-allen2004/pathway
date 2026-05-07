@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'mod_decision_log.dart';
 import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:pathway/core/theme/theme.dart';
+import 'package:pathway/features/venues/data/venue_repository.dart';
 
 class ModeratorDashboard extends StatefulWidget {
   const ModeratorDashboard({super.key});
@@ -415,7 +416,7 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
     final tabBorder = a11y.highContrast ? Colors.black : cs.primary;
 
     return DefaultTabController(
-      length: 6, // tabs
+      length: 7, // tabs
       child: Scaffold(
         appBar: PathwayAppBar(
           height: 100,
@@ -452,6 +453,7 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
                   _buildSuggestionStream(isHistory: true),
                   _buildReportStream(isHistory: false),
                   _buildReportStream(isHistory: true),
+                  _buildFlaggedReviewsStream(),
                 ],
               ),
             ),
@@ -500,6 +502,212 @@ class _ModeratorDashboardState extends State<ModeratorDashboard> {
         final reports = snapshot.data ?? [];
         return _buildReportList(reports, isHistory: isHistory);
       },
+    );
+  }
+
+  // Flagged reviews list
+  Widget _buildFlaggedReviewsStream() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: VenueRepository().fetchFlaggedReviews(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final flaggedReviews = snapshot.data ?? [];
+
+        if (flaggedReviews.isEmpty) {
+          return _buildEmptyState("No flagged reviews");
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            setState(() {}); // Trigger rebuild to refetch data
+          },
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: flaggedReviews.length,
+            itemBuilder: (context, i) => _buildFlaggedReviewCard(flaggedReviews[i]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFlaggedReviewCard(Map<String, dynamic> review) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final reviewId = review['review_id'];
+    final venueName = review['venue_name'] ?? 'Unknown Venue';
+    final authorName = review['author_name'] ?? 'Unknown User';
+    final rating = review['rating'] ?? 0;
+    final reviewText = review['review_text'] ?? '';
+    final helpfulCount = review['helpful_count'] ?? 0;
+    final outdatedCount = review['outdated_count'] ?? 0;
+    final inaccurateCount = review['inaccurate_count'] ?? 0;
+    final createdAt = review['created_at']?.toString();
+
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.red
+        : cs.error.withValues(alpha: 0.5);
+
+    return Card(
+      color: cardColor,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: borderColor,
+          width: a11y.highContrast ? 2 : 1.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.flag,
+                  color: cs.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Flagged Review',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: cs.error,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Venue and author info
+            Text(
+              'Venue: $venueName',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Author: $authorName',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                ...List.generate(5, (index) {
+                  return Icon(
+                    index < rating ? Icons.star : Icons.star_border,
+                    size: 16,
+                    color: Colors.amber,
+                  );
+                }),
+                const SizedBox(width: 8),
+                if (createdAt != null)
+                  Text(
+                    createdAt,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Review text
+            if (reviewText.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  reviewText,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            
+            // Vote counts
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _VoteCountChip(
+                  icon: Icons.thumb_up,
+                  label: 'Helpful',
+                  count: helpfulCount,
+                  color: Colors.green,
+                ),
+                _VoteCountChip(
+                  icon: Icons.schedule,
+                  label: 'Outdated',
+                  count: outdatedCount,
+                  color: Colors.orange,
+                ),
+                _VoteCountChip(
+                  icon: Icons.report,
+                  label: 'Inaccurate',
+                  count: inaccurateCount,
+                  color: cs.error,
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      _showSnackBar('Review inspection feature coming soon', isError: false);
+                    },
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    label: const Text('View Full Review'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      side: BorderSide(color: cs.primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      _showSnackBar('Review action feature coming soon', isError: false);
+                    },
+                    icon: const Icon(Icons.gavel, size: 18),
+                    label: const Text('Take Action'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: cs.error,
+                      foregroundColor: cs.onError,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -829,6 +1037,7 @@ class _ModeratorTabs extends StatelessWidget {
       'Suggestion History',
       'Reports Pending',
       'Report History',
+      'Flagged Reviews',
     ];
 
     return AnimatedBuilder(
@@ -931,6 +1140,50 @@ class _StatusBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.bold,
         ),
+      ),
+    );
+  }
+}
+
+/// Small chip showing vote counts on flagged reviews
+class _VoteCountChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int count;
+  final Color color;
+
+  const _VoteCountChip({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            '$count $label',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

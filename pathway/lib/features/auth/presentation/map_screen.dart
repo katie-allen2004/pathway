@@ -536,7 +536,7 @@ class _MapScreenState extends State<MapScreen> {
           if (isEditing && !_startedLoadingEditTags) {
             _startedLoadingEditTags = true;
             _repo
-                .getVenueTagIds(existingVenue!.id)
+                .getVenueTagIds(existingVenue.id)
                 .then((ids) {
                   setDialogState(() {
                     selectedTagIds = ids;

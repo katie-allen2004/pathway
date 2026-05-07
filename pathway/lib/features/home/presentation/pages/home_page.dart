@@ -133,7 +133,7 @@ class _HomePageState extends State<HomePage> {
                         const Icon(Icons.location_on_outlined, size: 18),
                         const SizedBox(width: 4),
                         Text(
-                          'Nearby venues around you',
+                          'Accessible venues near you',
                           style: theme.textTheme.bodyMedium,
                         ),
                       ],

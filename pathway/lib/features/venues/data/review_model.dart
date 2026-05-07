@@ -6,7 +6,7 @@ class ReviewModel {
   final int rating;
   final String? text;
   final DateTime? createdAt;
-  
+
   // Vote credibility data
   final int helpfulCount;
   final int outdatedCount;
@@ -14,6 +14,10 @@ class ReviewModel {
   final int totalVotes;
   final String? currentUserVote; // 'helpful', 'outdated', 'inaccurate', or null
   final bool isFlagged;
+
+  // Media attachments
+  final List<String> photos;
+  final List<String> videos;
 
   ReviewModel({
     required this.id,
@@ -29,14 +33,37 @@ class ReviewModel {
     this.totalVotes = 0,
     this.currentUserVote,
     this.isFlagged = false,
+    this.photos = const [],
+    this.videos = const [],
   });
+
+  static bool _isVideo(String url) {
+    final lower = url.toLowerCase().split('?').first;
+    return lower.endsWith('.mp4') || lower.endsWith('.mov') ||
+        lower.endsWith('.avi') || lower.endsWith('.webm');
+  }
 
   factory ReviewModel.fromMap(Map<String, dynamic> map) {
     // Calculate if flagged based on vote counts
     final outdated = (map['outdated_count'] as num?)?.toInt() ?? 0;
     final inaccurate = (map['inaccurate_count'] as num?)?.toInt() ?? 0;
     final flagged = outdated >= 3 || inaccurate >= 3;
-    
+
+    // Parse media attachments
+    final List<String> photos = [];
+    final List<String> videos = [];
+    if (map['review_photos'] is List) {
+      for (final p in map['review_photos'] as List) {
+        final url = p['url']?.toString();
+        if (url == null) continue;
+        if (ReviewModel._isVideo(url)) {
+          videos.add(url);
+        } else {
+          photos.add(url);
+        }
+      }
+    }
+
     return ReviewModel(
       id: (map['review_id'] as num?)?.toInt() ?? 0,
       venueId: (map['venue_id'] as num?)?.toInt() ?? 0,
@@ -53,6 +80,8 @@ class ReviewModel {
       totalVotes: (map['total_votes'] as num?)?.toInt() ?? 0,
       currentUserVote: map['current_user_vote']?.toString(),
       isFlagged: flagged,
+      photos: photos,
+      videos: videos,
     );
   }
   

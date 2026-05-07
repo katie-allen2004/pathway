@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'venue_model.dart';
@@ -9,6 +10,7 @@ import 'venue_edit_history_model.dart';
 import 'dart:typed_data';
 import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'package:pathway/features/venues/data/venue_draft_model.dart';
+import 'package:pathway/features/venues/data/venue_post_model.dart';
 
 class VenueRepository {
   final _client = Supabase.instance.client;
@@ -92,7 +94,7 @@ class VenueRepository {
           .maybeSingle();
 
       if (response == null) return null;
-      return VenueModel.fromJson(response as Map<String, dynamic>);
+      return VenueModel.fromJson(response);
     } catch (e) {
       debugPrint('Error in fetchVenueById: $e');
       return null;
@@ -267,15 +269,7 @@ class VenueRepository {
       dynamic query = _client
           .schema('pathway')
           .from('venue_reviews')
-          .select('''
-          review_id,
-          venue_id,
-          user_id,
-          rating,
-          review_text,
-          created_at,
-          is_visible
-        ''')
+          .select('*, review_photos(url)')
           .eq('venue_id', venueId)
           .eq('is_visible', true);
 
@@ -389,23 +383,28 @@ class VenueRepository {
     }
   }
 
-  Future<void> addVenueReview({
+  Future<int> addVenueReview({
     required int venueId,
     required int rating,
     String? text,
   }) async {
     final user = _client.auth.currentUser;
-    if (user == null) {
-      throw Exception("Not signed in.");
-    }
+    if (user == null) throw Exception("Not signed in.");
 
-    await _client.schema('pathway').from('venue_reviews').insert({
-      'venue_id': venueId,
-      'user_id': user.id,  // Use auth UUID directly
-      'rating': rating,
-      'review_text': (text ?? '').trim(),
-      'is_visible': true,
-    });
+    final result = await _client
+        .schema('pathway')
+        .from('venue_reviews')
+        .insert({
+          'venue_id': venueId,
+          'user_id': user.id,
+          'rating': rating,
+          'review_text': (text ?? '').trim(),
+          'is_visible': true,
+        })
+        .select('review_id')
+        .single();
+
+    final int reviewId = (result['review_id'] as num).toInt();
 
     // Award badges - note: evaluate_user_badges might need UUID or BIGINT depending on implementation
     try {
@@ -413,6 +412,53 @@ class VenueRepository {
     } catch (e) {
       debugPrint('evaluate_user_badges failed: $e');
     }
+
+    return reviewId;
+  }
+
+  // Upload bytes to Supabase storage and return the public URL.
+  // Review media (photos + videos) go to the 'reviews' bucket.
+  // Profile/venue images go to the 'avatars' bucket.
+  Future<String> uploadToStorage(String path, Uint8List bytes, {String? contentType}) async {
+    final bucket = path.startsWith('reviews/') ? 'reviews' : 'avatars';
+    await _client.storage.from(bucket).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(upsert: true, contentType: contentType),
+    );
+    return _client.storage.from(bucket).getPublicUrl(path);
+  }
+
+  // Get the public URL for a storage path.
+  String getPublicUrl(String path) {
+    if (path.startsWith('http')) return path;
+    return _client.storage.from('avatars').getPublicUrl(path);
+  }
+
+  // Update the image_path column of a venue.
+  Future<void> updateVenueImagePath(int venueId, String imagePath) async {
+    await _client
+        .schema('pathway')
+        .from('venues')
+        .update({'image_path': imagePath})
+        .eq('venue_id', venueId);
+  }
+
+  // Update the video_path column of a venue.
+  Future<void> updateVenueVideoPath(int venueId, String videoPath) async {
+    await _client
+        .schema('pathway')
+        .from('venues')
+        .update({'video_path': videoPath})
+        .eq('venue_id', venueId);
+  }
+
+  // Insert a photo URL linked to a review.
+  Future<void> addReviewPhoto(int reviewId, String url) async {
+    await _client.schema('pathway').from('review_photos').insert({
+      'review_id': reviewId,
+      'url': url,
+    });
   }
 
   /// Fetch badges for a single user (for Profile)
@@ -790,6 +836,57 @@ class VenueRepository {
     } catch (e) {
       debugPrint('Error fetching edit history: $e');
       return [];
+    }
+  }
+
+  Future<List<VenuePostModel>> fetchVenuePosts(int venueId) async {
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venue_posts')
+          .select()
+          .eq('venue_id', venueId)
+          .order('created_at', ascending: false);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      return rows.map(VenuePostModel.fromMap).toList();
+    } catch (e) {
+      debugPrint('Error fetching venue posts: $e');
+      return [];
+    }
+  }
+
+  Future<void> createVenuePost({
+    required int venueId,
+    required String content,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    await _client.schema('pathway').from('venue_posts').insert({
+      'venue_id': venueId,
+      'user_id': user.id,
+      'content': content.trim(),
+    });
+  }
+
+  Future<bool> canCurrentUserPostForVenue(int venueId) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+
+    try {
+      final res = await _client
+          .schema('pathway')
+          .from('venues')
+          .select('venue_id')
+          .eq('venue_id', venueId)
+          .eq('created_by_user_id', user.id)
+          .maybeSingle();
+
+      return res != null;
+    } catch (e) {
+      debugPrint('Error checking posting permission: $e');
+      return false;
     }
   }
 

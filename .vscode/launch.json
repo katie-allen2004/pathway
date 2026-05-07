@@ -8,21 +8,33 @@
             "name": "pathway",
             "cwd": "pathway",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "toolArgs": [
+                "--dart-define=SUPABASE_URL=YOUR_SUPABASE_URL_HERE",
+                "--dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE"
+            ]
         },
         {
             "name": "pathway (profile mode)",
             "cwd": "pathway",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "toolArgs": [
+                "--dart-define=SUPABASE_URL=YOUR_SUPABASE_URL_HERE",
+                "--dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE"
+            ]
         },
         {
             "name": "pathway (release mode)",
             "cwd": "pathway",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "flutterMode": "release",
+            "toolArgs": [
+                "--dart-define=SUPABASE_URL=YOUR_SUPABASE_URL_HERE",
+                "--dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY_HERE"
+            ]
         }
     ]
 }

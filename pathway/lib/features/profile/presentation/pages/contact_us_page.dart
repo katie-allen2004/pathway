@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class ContactUsPage extends StatefulWidget {
   const ContactUsPage({super.key});
@@ -69,6 +71,17 @@ class _ContactUsPageState extends State<ContactUsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
+    final helperColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.78);
 
     return Scaffold(
       appBar: PathwayAppBar(
@@ -76,7 +89,10 @@ class _ContactUsPageState extends State<ContactUsPage> {
         centertitle: false,
         title: Padding(
           padding: const EdgeInsets.only(top: 2.0),
-          child: Text('Contact us', style: theme.appBarTheme.titleTextStyle),
+          child: Text(
+            'Contact us', 
+            style: theme.appBarTheme.titleTextStyle
+          ),
         ),
       ),
       body: SafeArea(
@@ -84,6 +100,14 @@ class _ContactUsPageState extends State<ContactUsPage> {
           padding: AppSpacing.page,
           children: [
             Card(
+              color: cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                side: BorderSide(
+                  color: borderColor,
+                  width: a11y.highContrast ? 2 : 1,
+                ),
+              ),
               child: Padding(
                 padding: AppSpacing.cardPadding,
                 child: Form(
@@ -91,8 +115,20 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('How can we help?', style: theme.textTheme.titleMedium),
+                      Text(
+                        'How can we help?',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 8),
+                      Text(
+                        'Send us a message and we’ll review it as soon as we can.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: helperColor,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         // When the category changes, update _category and trigger UI update
                         initialValue: _category,
@@ -139,11 +175,35 @@ class _ContactUsPageState extends State<ContactUsPage> {
                       // Submit button with loading state
                       SizedBox(
                         height: 48,
+                        width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _sending ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                a11y.highContrast ? Colors.black : cs.primary,
+                            foregroundColor:
+                                a11y.highContrast ? Colors.white : cs.onPrimary,
+                          ),
                           child: _sending
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Send message'),
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: a11y.highContrast
+                                    ? Colors.white
+                                    : cs.onPrimary,
+                                ),
+                            )
+                          : Text(
+                            "Send message",
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: a11y.highContrast
+                                ? Colors.white
+                                : cs.onPrimary,
+                            ),
+                          ),
                         ),
                       ),
                     ],

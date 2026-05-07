@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../data/venue_model.dart';
 import '../pages/venue_detail_page.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class VenueCard extends StatelessWidget {
   final VenueModel venue;
@@ -20,15 +22,62 @@ class VenueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final bool isSaved = venue.isSaved;
+    final bool isHighContrast = a11y.highContrast;
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    final cardColor = isHighContrast
+        ? Colors.white
+        : (isDark? cs.surfaceContainerHighest : cs.surface);
+
+    final cardBorderColor = isHighContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: isDark ? 0.45 : 0.18);
+
+    final titleColor = isHighContrast ? Colors.black : cs.onSurface;
+    final subtitleColor = isHighContrast 
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.72);
+
+    final chipBg = isHighContrast 
+        ? Colors.white
+        : cs.primary.withValues(alpha: isDark ? 0.18 : 0.08);
+
+    final chipBorder = isHighContrast
+        ? Colors.black
+        : cs.primary.withValues(alpha: isDark ? 0.45 : 0.18);
+
+    final chipText = isHighContrast ? Colors.black : cs.primary;
+
+    final favoriteButtonBg = isHighContrast
+        ? Colors.white
+        : cs.surface.withValues(alpha: 0.95);
+    
+    final imagePlaceholderBg = isHighContrast
+        ? Colors.white
+        : cs.surface.withValues(alpha: 0.06);
+
+    final imagePlaceholderFg = isHighContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.35);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Material(
-        color: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
+        color: cardColor,
+        elevation: isHighContrast ? 0 : 2,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: cardBorderColor,
+            width: isHighContrast ? 2 : 1,
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () {
@@ -56,17 +105,19 @@ class VenueCard extends StatelessWidget {
                       venue.imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.deepPurple.withOpacity(0.05),
+                        color: imagePlaceholderBg,
                         child: Icon(
                           Icons.image_outlined,
-                          color: Colors.deepPurple.withOpacity(0.25),
+                          color: imagePlaceholderFg,
                           size: 44,
                         ),
                       ),
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) return child;
                         return Container(
-                          color: Colors.grey[100],
+                          color: isHighContrast
+                              ? Colors.white
+                              : cs.surfaceContainerHighest,
                           alignment: Alignment.center,
                           child: const SizedBox(
                             height: 22,
@@ -85,7 +136,9 @@ class VenueCard extends StatelessWidget {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.35),
+                            Colors.black.withValues(
+                              alpha: isHighContrast ? 0.55 : 0.35,
+                            ),
                           ],
                         ),
                       ),
@@ -109,7 +162,7 @@ class VenueCard extends StatelessWidget {
                       top: 6,
                       right: 6,
                       child: Material(
-                        color: Colors.white.withOpacity(0.92),
+                        color: favoriteButtonBg,
                         shape: const CircleBorder(),
                         child: IconButton(
                           tooltip: isSaved ? "Unsave" : "Save",
@@ -117,7 +170,7 @@ class VenueCard extends StatelessWidget {
                           onPressed: () => onFavoriteToggle(venue),
                           icon: Icon(
                             isSaved ? Icons.favorite : Icons.favorite_border,
-                            color: isSaved ? Colors.red : Colors.black87,
+                            color: isSaved ? cs.error : (isHighContrast ? Colors.black : cs.onSurface),
                           ),
                         ),
                       ),
@@ -141,35 +194,48 @@ class VenueCard extends StatelessWidget {
                             venue.name,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 18,
                               letterSpacing: -0.3,
+                              color: titleColor,
                             ),
                           ),
                         ),
                         if (isOwner)
                           PopupMenuButton<String>(
                             padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.more_vert, color: Colors.grey),
+                            icon: Icon(Icons.more_vert, color: isHighContrast ? Colors.black : subtitleColor),
                             onSelected: (value) {
                               if (value == 'edit' && onEdit != null) onEdit!();
                               if (value == 'delete' && onDelete != null) onDelete!();
                             },
-                            itemBuilder: (context) => const [
+                            itemBuilder: (context) =>  [
                               PopupMenuItem(
                                 value: 'edit',
                                 child: ListTile(
-                                  leading: Icon(Icons.edit, size: 20),
-                                  title: Text('Edit'),
+                                  leading: Icon(
+                                    Icons.edit, 
+                                    size: 20,
+                                    color: isHighContrast
+                                      ? Colors.black
+                                      : cs.onSurface,
+                                    ),
+                                  title: Text(
+                                    'Edit',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: isHighContrast
+                                        ? Colors.black
+                                        : cs.onSurface,
+                                    )),
                                   dense: true,
                                 ),
                               ),
                               PopupMenuItem(
                                 value: 'delete',
                                 child: ListTile(
-                                  leading: Icon(Icons.delete, color: Colors.red, size: 20),
-                                  title: Text('Delete', style: TextStyle(color: Colors.red)),
+                                  leading: Icon(Icons.delete, color: cs.error, size: 20),
+                                  title: Text('Delete', style: theme.textTheme.bodyMedium?.copyWith(color: cs.error,),),
                                   dense: true,
                                 ),
                               ),
@@ -183,14 +249,21 @@ class VenueCard extends StatelessWidget {
                     // location line
                     Row(
                       children: [
-                        Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                        Icon(Icons.location_on, 
+                          size: 16, 
+                          color: isHighContrast ? Colors.black : subtitleColor,
+                          ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             _locationText(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: subtitleColor,
+                              fontSize: 13,
+                              fontWeight: a11y.boldText ? FontWeight.w700 : null,
+                            ),
                           ),
                         ),
                       ],
@@ -199,7 +272,7 @@ class VenueCard extends StatelessWidget {
                     const SizedBox(height: 10),
 
                     // rating row
-                    _buildRating(),
+                    _buildRating(context),
 
                     if (venue.tags.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -208,7 +281,12 @@ class VenueCard extends StatelessWidget {
                         runSpacing: 6,
                         children: venue.tags
                             .take(3)
-                            .map((tag) => _TagChip(label: tag))
+                            .map((tag) => _TagChip(
+                              label: tag,
+                              backgroundColor: chipBg,
+                              borderColor: chipBorder,
+                              textColor: chipText,
+                              ))
                             .toList(),
                       ),
                     ],
@@ -231,18 +309,37 @@ class VenueCard extends StatelessWidget {
     return city.isNotEmpty ? city : zip;
   }
 
-  Widget _buildRating() {
+  Widget _buildRating(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final isHighContrast = a11y.highContrast;
+    final isDark = theme.brightness == Brightness.dark;
+
     if (venue.totalReviews == 0) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.grey[100],
+          color: isHighContrast
+              ? Colors.white
+              : (isDark 
+                  ? cs.surfaceContainerHighest
+                  : cs.surfaceContainerHighest.withValues(alpha: 0.7)),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isHighContrast
+                ? Colors.black
+                : cs.outline.withValues(alpha: 0.2),
+            width: isHighContrast ? 1.5 : 1,
+          ),
         ),
         child: Text(
           "NEW • NO REVIEWS",
-          style: TextStyle(
-            color: Colors.grey[700],
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: isHighContrast 
+                ? Colors.black
+                : cs.onSurface.withValues(alpha: 0.8),
             fontSize: 11,
             fontWeight: FontWeight.w800,
           ),
@@ -256,12 +353,21 @@ class VenueCard extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           venue.averageRating.toStringAsFixed(1),
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            fontSize: 14,
+          ),
         ),
         const SizedBox(width: 6),
         Text(
           "(${venue.totalReviews})",
-          style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w700),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: isHighContrast
+                ? Colors.black
+                : cs.onSurface.withValues(alpha: 0.65),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
@@ -277,12 +383,12 @@ class _PillBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
+        color: Colors.black.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: Colors.white,
           fontSize: 10,
           fontWeight: FontWeight.w900,
@@ -295,22 +401,31 @@ class _PillBadge extends StatelessWidget {
 
 class _TagChip extends StatelessWidget {
   final String label;
-  const _TagChip({required this.label});
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color textColor;
+
+  const _TagChip({
+    required this.label,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.textColor,
+    });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.withOpacity(0.06),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.deepPurple.withOpacity(0.12)),
+        border: Border.all(color: borderColor),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontSize: 11,
-          color: Colors.deepPurple,
+          color: textColor,
           fontWeight: FontWeight.w700,
         ),
       ),

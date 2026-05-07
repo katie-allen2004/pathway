@@ -7,7 +7,7 @@ class PathwayAppBar extends StatelessWidget
     final bool automaticallyImplyLeading;
     final bool centertitle;
     final List<Widget>? actions;
-    final Color backgroundColor;
+    final Color? backgroundColor;
 
     const PathwayAppBar({
       super.key,
@@ -16,7 +16,7 @@ class PathwayAppBar extends StatelessWidget
       this.height = kToolbarHeight,
       this.automaticallyImplyLeading = true,
       this.centertitle = false,
-      this.backgroundColor = const Color.fromARGB(255, 76, 89, 185)
+      this.backgroundColor, // const Color.fromARGB(255, 76, 89, 185)
     });
 
     @override
@@ -24,21 +24,38 @@ class PathwayAppBar extends StatelessWidget
 
     @override
     Widget build(BuildContext context) {
+      // Pull color scheme, background color, and foreground color from Theme
+      final cs = Theme.of(context).colorScheme;
+      final bg = backgroundColor ?? cs.primary;
+      final fg = cs.onPrimary;
+
       return AppBar(
+        // Apply settings from input
         toolbarHeight: height,
         automaticallyImplyLeading: automaticallyImplyLeading,
         centerTitle: centertitle,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+
+        // Apply colors from Theme
+        backgroundColor: bg,
+        foregroundColor: fg,
+
+        // Set IconTheme based on foreground color (dependant on style settings)
+        iconTheme: IconThemeData(color: fg),
+        titleTextStyle: Theme.of(context)
+        .appBarTheme
+        .titleTextStyle
+        ?.copyWith(color: fg),
         
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            color: Color.fromARGB(255, 76, 89, 185),
+          decoration: BoxDecoration(
+            color: bg,
             image: DecorationImage(
+              // Apply navbar_texture.png
               image: AssetImage('assets/images/navbar_texture.png',),
               fit: BoxFit.cover,
               colorFilter: ColorFilter.mode(
-                Color.fromARGB(55, 0, 0, 0),
+                fg.withValues(alpha: 0.18),
                 BlendMode.dstIn,
               )
               ),

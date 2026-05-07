@@ -6,6 +6,7 @@ class ProfileRepository {
   ProfileRepository({SupabaseClient? client})
     : supabase = client ?? Supabase.instance.client;
 
+  // Helper: Get user's authUUID
   Future<String> _getAuthUUID() async {
     final authUser = supabase.auth.currentUser;
     if (authUser == null) {
@@ -13,6 +14,8 @@ class ProfileRepository {
     }
     return authUser.id;
   }
+
+  // Helper: Get user's external ID
   Future<int> _getInternalUserId() async {
     final authUser = supabase.auth.currentUser;
     if (authUser == null) {
@@ -29,7 +32,7 @@ class ProfileRepository {
     return (row['user_id'] as num).toInt();
   }
 
-  //avatar
+  // Helper: Update user's avatar
   Future<String?> _updateAvatar(XFile? photo) async {
     if (photo == null) return null;
 
@@ -54,7 +57,7 @@ class ProfileRepository {
     return supabase.storage.from('avatars').getPublicUrl(path);
   }
 
-  // display
+  // Helper: Update user's profile row with authUUID, displayName, and avatarUrl
   Future<void> _updateProfileRow({
     required String authUuid,
     required String? displayName,
@@ -72,7 +75,7 @@ class ProfileRepository {
     }, onConflict: 'user_id');
   }
 
-  // accessilbilty tags
+  // Helper: Replace accessibility tags associated with user's profile
   Future<void> _replaceAccessibilityTags({
     required int userId,
     required List<String> tagNames,
@@ -104,6 +107,7 @@ class ProfileRepository {
         .insert(inserts);
   }
 
+  // Helper: Change user's password if needed
   Future<void> _changePasswordIfNeeded({
     required String currentPassword,
     required String newPassword,
@@ -124,7 +128,7 @@ class ProfileRepository {
     await supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
-  // public
+  // Helper: Update user's profile using helper methods
   Future<void> updateProfile({
     required String displayName,
     XFile? photo,
@@ -150,7 +154,7 @@ class ProfileRepository {
     );
   }
 
-// profile 
+// Helper: Get user's display name 
   Future<String?> getDisplayName() async {
     final authUuid = await _getAuthUUID();
 
@@ -164,7 +168,7 @@ class ProfileRepository {
     return profileRow?['display_name'] as String?;
   }
 
-  // picture url 
+  // Helper: Get user's profile picture URL
   Future<String?> getProfilePictureUrl() async {
     final authUuid = await _getAuthUUID();
 
@@ -178,7 +182,7 @@ class ProfileRepository {
     return profileRow?['avatar_url'] as String?;
   }
 
-  //accessibility tags
+  // Helper: Get user's accessibility tags
   Future<List<String>?> getUserAccessibilityTags() async {
     final userId = await _getInternalUserId();
 

@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StorageService {
   final SupabaseClient _supabase = Supabase.instance.client;
-
+  
   Future<String?> pickAndUploadImage() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
@@ -41,4 +41,7 @@ class StorageService {
       return null;
     }
   }
+  String getPublicUrl(String path) {
+  return _supabase.storage.from('avatars').getPublicUrl(path);
+}
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class BlockedMutedPage extends StatefulWidget {
   const BlockedMutedPage({super.key});
@@ -72,6 +74,14 @@ class _BlockedMutedPageState extends State<BlockedMutedPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final tabBg = a11y.highContrast ? Colors.white : cs.surface;
+    final tabSelectedBg = a11y.highContrast ? Colors.black : cs.primary;
+    final tabSelectedFg = Colors.white;
+    final tabUnselectedFg = a11y.highContrast ? Colors.black : cs.primary;
+    final tabBorder = a11y.highContrast ? Colors.black : cs.primary;
 
     return DefaultTabController(
       length: 2,
@@ -81,18 +91,25 @@ class _BlockedMutedPageState extends State<BlockedMutedPage> {
           centertitle: false,
           title: Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text('Blocked & muted', style: theme.appBarTheme.titleTextStyle),
+            child: Text(
+              'Blocked & muted', 
+              style: theme.appBarTheme.titleTextStyle
+            ),
           ),
         ),
         body: Column(
           children: [
             Material(
               color: Theme.of(context).scaffoldBackgroundColor,
-              child: const TabBar(
-                tabs: [
-                  Tab(text: 'Blocked'),
-                  Tab(text: 'Muted'),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: _BlockedMutedTabs(
+                  backgroundColor: tabBg,
+                  selectedBackgroundColor: tabSelectedBg,
+                  selectedForegroundColor: tabSelectedFg,
+                  unselectedForegroundColor: tabUnselectedFg,
+                  borderColor: tabBorder,
+                ),
               ),
             ),
             Expanded(
@@ -125,6 +142,81 @@ class _BlockedMutedPageState extends State<BlockedMutedPage> {
   }
 }
 
+class _BlockedMutedTabs extends StatelessWidget {
+  final Color backgroundColor;
+  final Color selectedBackgroundColor;
+  final Color selectedForegroundColor;
+  final Color unselectedForegroundColor;
+  final Color borderColor;
+
+  const _BlockedMutedTabs({
+    required this.backgroundColor,
+    required this.selectedBackgroundColor,
+    required this.selectedForegroundColor,
+    required this.unselectedForegroundColor,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = DefaultTabController.of(context);
+    final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    if (controller == null) return const SizedBox.shrink();
+
+    const labels = ['Blocked', 'Muted'];
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final currentIndex = controller.index;
+
+        return Row(
+          children: List.generate(labels.length, (index) {
+            final selected = index == currentIndex;
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: index == labels.length - 1 ? 0 : 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => controller.animateTo(index),
+                  child: AnimatedContainer(
+                    duration: a11y.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: selected ? selectedBackgroundColor : backgroundColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: borderColor,
+                        width: a11y.highContrast ? 2 : 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        labels[index],
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: selected
+                              ? selectedForegroundColor
+                              : unselectedForegroundColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 class _RelationshipsList extends StatelessWidget {
   final Future<List<_RelationshipRow>> future;
   final String emptyTitle;
@@ -142,6 +234,15 @@ class _RelationshipsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
     return FutureBuilder<List<_RelationshipRow>>(
       future: future,
       builder: (context, snap) {
@@ -157,7 +258,14 @@ class _RelationshipsList extends StatelessWidget {
           return ListView(
             padding: AppSpacing.page,
             children: [
-              Text('Failed to load: ${snap.error}'),
+              Text(
+                'Failed to load: ${snap.error}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: a11y.highContrast
+                      ? Colors.black
+                      : cs.onSurface.withValues(alpha: 0.82),
+                ),
+              ),
             ],
           );
         }
@@ -179,19 +287,47 @@ class _RelationshipsList extends StatelessWidget {
           itemBuilder: (context, i) {
             final u = users[i];
             return Card(
+              color: cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                side: BorderSide(
+                  color: borderColor,
+                  width: a11y.highContrast ? 2 : 1,
+                ),
+              ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundImage: (u.avatarUrl != null && u.avatarUrl!.isNotEmpty)
-                      ? NetworkImage(u.avatarUrl!)
-                      : null,
+                  backgroundColor: a11y.highContrast
+                      ? Colors.white
+                      : cs.surfaceContainerHighest,
+                  backgroundImage:
+                      (u.avatarUrl != null && u.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(u.avatarUrl!)
+                          : null,
                   child: (u.avatarUrl == null || u.avatarUrl!.isEmpty)
-                      ? const Icon(Icons.person_rounded, color: Colors.white)
+                      ? Icon(
+                          Icons.person_rounded,
+                          color: a11y.highContrast
+                              ? Colors.black
+                              : cs.onSurface.withValues(alpha: 0.75),
+                        )
                       : null,
                 ),
-                title: Text(u.displayName),
+                title: Text(
+                  u.displayName,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 trailing: TextButton(
                   onPressed: () => onAction(u),
-                  child: Text(actionLabel),
+                  child: Text(
+                    actionLabel,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: a11y.highContrast ? Colors.black : cs.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -212,6 +348,11 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final mutedColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.72);
 
     return Center(
       child: Padding(
@@ -219,13 +360,27 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.block_rounded, size: 52, color: cs.onSurface.withOpacity(0.35)),
+            Icon(
+              Icons.block_rounded,
+              size: 52,
+              color: a11y.highContrast
+                  ? Colors.black
+                  : cs.onSurface.withValues(alpha: 0.45),
+            ),
             const SizedBox(height: 12),
-            Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: a11y.highContrast ? Colors.black : cs.onSurface,
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.65)),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: mutedColor
+              ),
               textAlign: TextAlign.center,
             ),
           ],

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pathway/core/routing/app_router.dart';
 import 'package:pathway/core/widgets/app_scaffold.dart';
 import 'signup_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'forgot_password_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 // Import validators
 import 'package:pathway/core/utils/validators.dart';
@@ -110,10 +114,12 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
+      // Load AccessibilitySettings from database to apply settings at sign-in
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const PathwayNavShell()),
-      );
+      await context.read<AccessibilityController>().loadFromDatabase();
+
+      if (!mounted) return;
+      context.push('/signup');
     } on AuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -131,12 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Function to navigate to the Signup screen
   void _navigateToSignup() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        // This links to the SignupScreen 
-        builder: (context) => const SignupScreen(),
-      ),
-    );
+    context.push('/signup');
   }
 
   @override
@@ -302,12 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               alignment: Alignment.centerLeft,
                               child: TextButton(
                                 onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const ForgotPasswordScreen(),
-                                    ),
-                                  );
+                                  context.push('/forgot-password');
                                 },
 
                                 style: TextButton.styleFrom(

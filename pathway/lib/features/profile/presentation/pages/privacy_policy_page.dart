@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pathway/core/theme/theme.dart';
 import 'package:pathway/core/widgets/widgets.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
+import 'package:provider/provider.dart';
 
 class PrivacyPolicyPage extends StatelessWidget {
   const PrivacyPolicyPage({super.key});
@@ -9,6 +11,11 @@ class PrivacyPolicyPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final mutedTextColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.78);
 
     return Scaffold(
       appBar: PathwayAppBar(
@@ -16,7 +23,10 @@ class PrivacyPolicyPage extends StatelessWidget {
         centertitle: false,
         title: Padding(
           padding: const EdgeInsets.only(top: 2.0),
-          child: Text('Privacy Policy', style: theme.appBarTheme.titleTextStyle),
+          child: Text(
+            'Privacy Policy', 
+            style: theme.appBarTheme.titleTextStyle
+          ),
         ),
       ),
       body: SafeArea(
@@ -27,7 +37,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               Text(
                 'Effective Date: January 1, 2026',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: cs.onSurface.withValues(alpha: 0.6),
+                  color: mutedTextColor,
                 ),
               ),
               const SizedBox(height: 12),
@@ -94,7 +104,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               Text(
                 'This policy may be updated from time to time. Continued use of the app constitutes acceptance of the revised policy.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: cs.onSurface.withValues(alpha: 0.6),
+                  color: mutedTextColor,
                   height: 1.4,
                 ),
               ),
@@ -120,10 +130,28 @@ class _PolicySectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
+    final bodyColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.92);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
+        color: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          side: BorderSide(
+            color: borderColor,
+            width: a11y.highContrast ? 2 : 1,
+          ),
+        ),
         child: Padding(
           padding: AppSpacing.cardPadding,
           child: Column(
@@ -133,6 +161,7 @@ class _PolicySectionCard extends StatelessWidget {
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: a11y.highContrast ? Colors.black : cs.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -140,7 +169,7 @@ class _PolicySectionCard extends StatelessWidget {
                 body,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   height: 1.5,
-                  color: cs.onSurface.withValues(alpha: 0.9),
+                  color: bodyColor,
                 ),
               ),
             ],

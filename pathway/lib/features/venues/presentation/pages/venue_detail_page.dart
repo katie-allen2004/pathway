@@ -1,21 +1,187 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../data/venue_model.dart';
 import '../../data/venue_repository.dart';
 import '../../data/review_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
+import 'package:pathway/features/gamification/data/badge_model.dart';
+import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog.dart';
+import 'package:pathway/features/venues/data/venue_edit_history_model.dart';
+import 'package:pathway/features/venues/data/venue_image_model.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pathway/features/venues/data/venue_post_model.dart';
 import '../../data/venue_overview_generator.dart';
 import '../../../../features/reviews/data/review_moderator.dart';
+
+
+class ReviewShareHelper {
+  static const String _baseUrl = 'https://pathway.app';
+
+  static String reviewUrl({required int venueId, required ReviewModel review}) {
+    return '$_baseUrl/map/venue/$venueId/reviews/${review.id}';
+  }
+
+  static String shareText({
+    required int venueId,
+    required ReviewModel review,
+    required String venueName,
+  }) {
+    final body = (review.text ?? '').trim();
+    final rating = review.rating;
+    final url = reviewUrl(venueId: venueId, review: review);
+
+    final intro =
+        'Check out this $rating-star review for $venueName on Pathway';
+    if (body.isEmpty) {
+      return '$intro\n\n$url';
+    }
+
+    return '$intro:\n"$body"\n\n$url';
+  }
+
+  static Future<void> copyReviewLink(
+    BuildContext context, {
+    required int venueId,
+    required ReviewModel review,
+  }) async {
+    final url = reviewUrl(venueId: venueId, review: review);
+    await Clipboard.setData(ClipboardData(text: url));
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Review link copied.')));
+    }
+  }
+
+  static Future<void> shareReview(
+    BuildContext context, {
+    required ReviewModel review,
+    required String venueName,
+    required int venueId,
+  }) async {
+    final text = shareText(
+      venueId: venueId,
+      review: review,
+      venueName: venueName,
+    );
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(text: text, subject: 'Pathway review for $venueName'),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Share failed: $e')));
+      }
+    }
+  }
+
+  static Future<void> shareToX(
+    BuildContext context, {
+    required ReviewModel review,
+    required String venueName,
+    required int venueId,
+  }) async {
+    final url = reviewUrl(venueId: venueId, review: review);
+
+    final tweetText = 'Check out this review for $venueName on Pathway';
+
+    final xUri = Uri.https('twitter.com', '/intent/tweet', {
+      'text': tweetText,
+      'url': url,
+    });
+
+    final ok = await launchUrl(xUri, mode: LaunchMode.externalApplication);
+
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open X.')));
+    }
+  }
+
+  static Future<void> showShareSheet(
+    BuildContext context, {
+    required ReviewModel review,
+    required String venueName,
+    required int venueId,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy review link'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await copyReviewLink(
+                    context,
+                    review: review,
+                    venueId: venueId,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share_rounded),
+                title: const Text('Share...'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await shareReview(
+                    context,
+                    review: review,
+                    venueName: venueName,
+                    venueId: venueId,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.alternate_email_rounded),
+                title: const Text('Share to X'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await shareToX(
+                    context,
+                    review: review,
+                    venueName: venueName,
+                    venueId: venueId,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 class VenueDetailPage extends StatefulWidget {
   final int venueId;
   final VenueModel? initialVenue;
+  final int initialTabIndex;
+  final String? highlightReviewId;
 
-  const VenueDetailPage({super.key, required this.venueId, this.initialVenue});
+  const VenueDetailPage({
+    super.key,
+    required this.venueId,
+    this.initialVenue,
+    this.initialTabIndex = 0,
+    this.highlightReviewId,
+  });
 
   @override
   State<VenueDetailPage> createState() => _VenueDetailPageState();
@@ -33,6 +199,53 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
   void _loadData() {
     _venueFuture = _repo.fetchVenueById(widget.venueId);
+  }
+
+  Future<void> _pickAndUploadVenueImage(VenueModel venue) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery);
+
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+
+      await _repo.uploadVenueImage(
+        venueId: venue.id,
+        bytes: bytes,
+        fileName: file.name,
+        isPrimary: false,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image uploaded successfully.')),
+      );
+
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to upload image: $e')));
+    }
+  }
+
+  Future<void> _showSuggestEditDialog() async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          SuggestEditDialog(venueId: widget.venueId, repository: _repo),
+    );
+
+    if (!mounted) return;
+
+    if (submitted == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Suggestion submitted for review.')),
+      );
+    }
   }
 
   Future<void> _refresh() async {
@@ -53,8 +266,13 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return DefaultTabController(
       length: 3,
+      initialIndex: widget.initialTabIndex,
       child: FutureBuilder<VenueModel?>(
         future: _venueFuture,
         initialData: widget.initialVenue,
@@ -62,20 +280,22 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
           final venue = snapshot.data;
 
           return Scaffold(
-            backgroundColor: const Color(0xFFF8F9FE),
+            backgroundColor: theme.scaffoldBackgroundColor,
             floatingActionButton: (venue == null)
                 ? null
                 : AnimatedScale(
-                    duration: const Duration(milliseconds: 200),
+                    duration: a11y.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 200),
                     scale: venue.isSaved ? 1.1 : 1.0,
                     child: FloatingActionButton(
                       heroTag: 'fav_fab_${venue.id}',
-                      backgroundColor: Colors.white,
-                      elevation: 6,
+                      backgroundColor: cs.surface,
+                      elevation: a11y.highContrast ? 0 : 6,
                       onPressed: () => _toggleSave(venue),
                       child: Icon(
                         venue.isSaved ? Icons.favorite : Icons.favorite_border,
-                        color: venue.isSaved ? Colors.red : Colors.black87,
+                        color: venue.isSaved ? cs.error : cs.onSurface,
                       ),
                     ),
                   ),
@@ -123,39 +343,62 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         ? 'No address provided'
         : addressParts.join(', ');
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) {
         return [
           SliverAppBar(
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+              icon: Icon(
+                Icons.arrow_back,
+                color: innerBoxIsScrolled ? cs.onSurface : Colors.white,
+              ),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/map');
+                }
+              },
             ),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
+            backgroundColor: cs.surface,
+            foregroundColor: cs.onSurface,
             pinned: true,
             elevation: 0,
-            expandedHeight: 260,
+            expandedHeight: 320,
             title: innerBoxIsScrolled
                 ? Text(
                     venue.name,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   )
                 : null,
             actions: [
-              IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
+              if (venue != null)
+                IconButton(
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  tooltip: 'Upload photo',
+                  onPressed: () => _pickAndUploadVenueImage(venue),
+                ),
+              IconButton(
+                icon: Icon(
+                  Icons.refresh,
+                  color: innerBoxIsScrolled ? cs.onSurface : Colors.white,
+                ),
+                onPressed: _refresh,
+              ),
             ],
-            bottom: const TabBar(
-              labelColor: Colors.deepPurple,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.deepPurple,
-              indicatorWeight: 3,
-              tabs: [
-                Tab(text: 'Overview'),
-                Tab(text: 'Reviews'),
-                Tab(text: 'Posts'),
-              ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(76),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: _DetailTabs(),
+              ),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
@@ -165,34 +408,32 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                     venue.imageUrl,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      color: Colors.grey[200],
-                      child: const Center(
+                      color: cs.surfaceContainerHighest,
+                      child: Center(
                         child: Icon(
                           Icons.broken_image_outlined,
-                          color: Colors.grey,
+                          color: cs.onSurface.withValues(alpha: 0.6),
                           size: 56,
                         ),
                       ),
                     ),
                   ),
-                  // gradient overlay
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.15),
-                          Colors.black.withOpacity(0.75),
+                          Colors.black.withValues(alpha: 0.18),
+                          Colors.black.withValues(alpha: 0.78),
                         ],
                       ),
                     ),
                   ),
-                  // title/address overlay
                   Positioned(
                     left: 16,
                     right: 16,
-                    bottom: 18,
+                    bottom: 72, // keeps location above the tabs
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -200,20 +441,23 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                           venue.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: theme.textTheme.headlineSmall?.copyWith(
                             color: Colors.white,
-                            fontSize: 26,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -0.4,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.location_on,
-                              size: 16,
-                              color: Colors.white70,
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.location_on,
+                                size: 16,
+                                color: Colors.white70,
+                              ),
                             ),
                             const SizedBox(width: 6),
                             Expanded(
@@ -221,9 +465,8 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                                 fullAddress,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: theme.textTheme.bodySmall?.copyWith(
                                   color: Colors.white70,
-                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -241,11 +484,102 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       },
       body: TabBarView(
         children: [
-          _OverviewTab(venue: venue, onPhotoUploaded: _refresh),
-          _ReviewsTab(venue: venue, onReviewAdded: _refresh),
+          _OverviewTab(venue: venue, onSuggestEdit: _showSuggestEditDialog),
+          _ReviewsTab(
+            venue: venue,
+            onReviewAdded: _refresh,
+            highlightReviewId: widget.highlightReviewId,
+          ),
           _PostsTab(venue: venue),
         ],
       ),
+    );
+  }
+}
+
+class _DetailTabs extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final controller = DefaultTabController.of(context);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    const labels = ['Overview', 'Reviews', 'Posts'];
+
+    if (controller == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final currentIndex = controller.index;
+
+        return Row(
+          children: List.generate(labels.length, (index) {
+            final selected = index == currentIndex;
+
+            // dark mode: selected: purp bg + black text
+            // unselected: black bg + white text
+
+            final bg = selected
+                ? (a11y.highContrast ? Colors.black : cs.primary)
+                : (a11y.darkMode
+                      ? theme.scaffoldBackgroundColor
+                      : Colors.white);
+
+            final fg = selected
+                ? (a11y.darkMode ? Colors.black : Colors.white)
+                : (a11y.highContrast ? Colors.black : cs.primary);
+
+            // Normal:
+            //  - Selected: primary bg + white text/border
+            //  - Unselected: white bg + primary text/border
+            // High Contrast:
+            //  - Selected: black bg + white text/border
+            //  - Unselected: white bg + black text/border
+            // Dark Mode:
+            //   - Selected: primary bg + black text/border
+            //   - Unselected: scaffold bg + white text/border
+            final borderColor = selected
+                ? (a11y.darkMode ? Colors.black : Colors.white)
+                : (a11y.highContrast ? Colors.black : cs.primary);
+
+            // final borderColor = a11y.highContrast ? Colors.black : cs.primary;
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: index == labels.length - 1 ? 0 : 8,
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => controller.animateTo(index),
+                  child: AnimatedContainer(
+                    duration: a11y.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor, width: 1.5),
+                    ),
+                    child: Center(
+                      child: Text(
+                        labels[index],
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: fg,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
@@ -254,9 +588,9 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
 class _OverviewTab extends StatefulWidget {
   final VenueModel venue;
-  final VoidCallback onPhotoUploaded;
+  final VoidCallback onSuggestEdit;
 
-  const _OverviewTab({required this.venue, required this.onPhotoUploaded});
+  const _OverviewTab({required this.venue, required this.onSuggestEdit});
 
   @override
   State<_OverviewTab> createState() => _OverviewTabState();
@@ -264,8 +598,6 @@ class _OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<_OverviewTab> {
   final _repo = VenueRepository();
-  bool _uploadingPhoto = false;
-  bool _uploadingVideo = false;
 
   VenueModel get venue => widget.venue;
 
@@ -291,60 +623,11 @@ class _OverviewTabState extends State<_OverviewTab> {
     }
   }
 
-  Future<void> _uploadVenuePhoto() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (picked == null) return;
-
-    setState(() => _uploadingPhoto = true);
-    try {
-      final Uint8List bytes = await picked.readAsBytes();
-      final ext = picked.name.split('.').last;
-      final path = 'venues/${venue.id}/cover.$ext';
-      await _repo.uploadToStorage(path, bytes);
-      await _repo.updateVenueImagePath(venue.id, path);
-      widget.onPhotoUploaded();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _uploadingPhoto = false);
-    }
-  }
-
-  Future<void> _uploadVenueVideo() async {
-    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
-    if (picked == null) return;
-
-    setState(() => _uploadingVideo = true);
-    try {
-      final Uint8List bytes = await picked.readAsBytes();
-      final ext = picked.name.split('.').last;
-      final path = 'venues/${venue.id}/video.$ext';
-      await _repo.uploadToStorage(path, bytes);
-      await _repo.updateVenueVideoPath(venue.id, path);
-      widget.onPhotoUploaded();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Video upload failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _uploadingVideo = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final isOwner = currentUserId != null &&
-        venue.createdByUserId == currentUserId;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
 
     final hasCoords = venue.latitude != null && venue.longitude != null;
     final hasAddress =
@@ -357,22 +640,50 @@ class _OverviewTabState extends State<_OverviewTab> {
       children: [
         Row(
           children: [
-            _Badge(text: venue.category ?? 'Venue', color: Colors.deepPurple),
+            _Badge(
+              text: venue.category ?? 'Venue',
+              color: (a11y.highContrast ? Colors.black : cs.primary),
+            ),
             const SizedBox(width: 10),
             venue.totalReviews == 0
-                ? _Badge(text: 'NEW • NO REVIEWS', color: Colors.grey[700]!)
+                ? _Badge(
+                    text: 'NEW • NO REVIEWS',
+                    color: (a11y.highContrast
+                        ? Colors.black
+                        : Colors.grey[700]!),
+                  )
                 : _Badge(
                     text:
                         '${venue.averageRating.toStringAsFixed(1)} ★ • ${venue.totalReviews} review${venue.totalReviews == 1 ? '' : 's'}',
                     icon: Icons.star_rounded,
-                    color: Colors.amber[800]!,
+                    color: (a11y.highContrast
+                        ? Colors.black
+                        : Colors.amber[800]!),
                   ),
           ],
         ),
-        const SizedBox(height: 16),
-        _AccessibilityScoreCard(venue: venue),
 
         const SizedBox(height: 14),
+
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: widget.onSuggestEdit,
+              icon: const Icon(Icons.edit_note_rounded, size: 18),
+              label: const Text('Suggest Edit'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
 
         _Card(
           title: 'AI Overview',
@@ -404,57 +715,10 @@ class _OverviewTabState extends State<_OverviewTab> {
 
         const SizedBox(height: 14),
 
-        _Card(
-          title: 'Photos & Videos',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Image.network(
-                    venue.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: Colors.grey[200],
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Image unavailable',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (venue.videoPath != null && venue.videoPath!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                _VideoTile(url: _repo.getPublicUrl(venue.videoPath!)),
-              ],
-              if (isOwner) ...[
-                const SizedBox(height: 10),
-                if (_uploadingPhoto || _uploadingVideo)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _uploadVenuePhoto,
-                        icon: const Icon(Icons.upload_file, size: 18),
-                        label: const Text('Upload Photo'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _uploadVenueVideo,
-                        icon: const Icon(Icons.video_call, size: 18),
-                        label: const Text('Upload Video'),
-                      ),
-                    ],
-                  ),
-              ],
-            ],
-          ),
-        ),
+        _AccessibilityScoreCard(venue: venue),
+        const SizedBox(height: 14),
+
+        _VenuePhotosCard(venue: venue),
 
         const SizedBox(height: 14),
         _Card(
@@ -493,7 +757,8 @@ class _OverviewTabState extends State<_OverviewTab> {
                 : venue.description!,
             style: TextStyle(
               height: 1.6,
-              color: Colors.grey[800],
+              color: (a11y.darkMode ? Colors.white30 : Colors.black87)
+                  .withValues(alpha: 0.9),
               fontSize: 15,
             ),
           ),
@@ -537,13 +802,13 @@ class _OverviewTabState extends State<_OverviewTab> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
+                    color: theme.scaffoldBackgroundColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.location_on, color: Colors.deepPurple),
+                      Icon(Icons.location_on, color: cs.primary),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -564,6 +829,8 @@ class _OverviewTabState extends State<_OverviewTab> {
                 ),
               ),
 
+              const SizedBox(height: 10),
+
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -573,18 +840,99 @@ class _OverviewTabState extends State<_OverviewTab> {
                         ? () => _openMapsForVenue(context, venue)
                         : null,
                     icon: const Icon(Icons.map_outlined, size: 18),
-                    label: const Text('Open in Maps'),
+                    label: Text(
+                      'Open in Maps',
+                      style: TextStyle(
+                        color: (a11y.darkMode ? Colors.white : cs.primary),
+                      ),
+                    ),
                   ),
                   OutlinedButton.icon(
                     onPressed: (hasCoords || hasAddress)
                         ? () => _copyVenueLocation(context, venue)
                         : null,
                     icon: const Icon(Icons.copy, size: 18),
-                    label: const Text('Copy'),
+                    label: Text(
+                      'Copy',
+                      style: TextStyle(
+                        color: (a11y.darkMode ? Colors.white : cs.primary),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        _Card(
+          title: 'Edit History',
+          child: FutureBuilder<List<VenueEditHistoryModel>>(
+            future: VenueRepository().fetchVenueEditHistory(venue.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              final history = snapshot.data ?? [];
+
+              if (history.isEmpty) {
+                return const Text(
+                  'No edit history yet.',
+                  style: TextStyle(color: Colors.grey),
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: history.map((h) {
+                  final oldText =
+                      (h.oldValue == null || h.oldValue!.trim().isEmpty)
+                      ? '—'
+                      : h.oldValue!;
+                  final newText =
+                      (h.newValue == null || h.newValue!.trim().isEmpty)
+                      ? '—'
+                      : h.newValue!;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          h.fieldName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$oldText → $newText',
+                          style: TextStyle(color: Colors.grey[800]),
+                        ),
+                        if (h.createdAt != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${h.createdAt!.month}/${h.createdAt!.day}/${h.createdAt!.year}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                        const Divider(height: 18),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
           ),
         ),
       ],
@@ -680,8 +1028,13 @@ class _OverviewTabState extends State<_OverviewTab> {
 class _ReviewsTab extends StatefulWidget {
   final VenueModel venue;
   final Future<void> Function() onReviewAdded;
+  final String? highlightReviewId;
 
-  const _ReviewsTab({required this.venue, required this.onReviewAdded});
+  const _ReviewsTab({
+    required this.venue,
+    required this.onReviewAdded,
+    this.highlightReviewId,
+  });
 
   @override
   State<_ReviewsTab> createState() => _ReviewsTabState();
@@ -689,8 +1042,9 @@ class _ReviewsTab extends StatefulWidget {
 
 class _ReviewsTabState extends State<_ReviewsTab> {
   final _repo = VenueRepository();
+  final Map<String, Set<int>> _animatedBadgeIdsByUser = {};
   late Future<List<ReviewModel>> _reviewsFuture;
-
+  Map<String, List<BadgeModel>> _badgesByUser = {};
   String _sortMode = 'newest';
 
   @override
@@ -700,6 +1054,7 @@ class _ReviewsTabState extends State<_ReviewsTab> {
       widget.venue.id,
       sortMode: _sortMode,
     );
+    _refresh(); // loads badges too
   }
 
   Future<bool> _confirmDeleteReview() async {
@@ -721,17 +1076,49 @@ class _ReviewsTabState extends State<_ReviewsTab> {
         ],
       ),
     );
-
     return result ?? false;
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      _reviewsFuture = _repo.fetchVenueReviews(
+    try {
+      final reviews = await _repo.fetchVenueReviews(
         widget.venue.id,
         sortMode: _sortMode,
       );
-    });
+
+      final authorIds = reviews.map((r) => r.userId).toSet().toList();
+      final badgesByUser = await _repo.fetchBadgesForUsers(authorIds);
+
+      // Detect newly earned badges per user (for animation)
+      for (final uid in badgesByUser.keys) {
+        final newList = badgesByUser[uid] ?? const [];
+        final oldList = _badgesByUser[uid] ?? const [];
+
+        final oldIds = oldList.map((b) => b.badgeId).toSet();
+        final newlyEarnedIds = newList
+            .map((b) => b.badgeId)
+            .where((id) => !oldIds.contains(id))
+            .toSet();
+
+        if (newlyEarnedIds.isNotEmpty) {
+          _animatedBadgeIdsByUser[uid] = newlyEarnedIds;
+        } else {
+          _animatedBadgeIdsByUser.remove(uid);
+        }
+      }
+
+      setState(() {
+        _reviewsFuture = Future.value(reviews);
+        _badgesByUser = badgesByUser;
+      });
+    } catch (e) {
+      setState(() {
+        _reviewsFuture = _repo.fetchVenueReviews(
+          widget.venue.id,
+          sortMode: _sortMode,
+        );
+      });
+    }
   }
 
   Future<void> _openAddReview() async {
@@ -767,25 +1154,26 @@ class _ReviewsTabState extends State<_ReviewsTab> {
         await _repo.addReviewPhoto(reviewId, url);
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Review submitted.")));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Review submitted.")));
 
       await widget.onReviewAdded(); // refresh parent venue (rating)
-      await _refresh(); // refresh review list
+      await _refresh(); // refresh review list + badges
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Review failed: $e")));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Review failed: $e")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
     return FutureBuilder<List<ReviewModel>>(
       future: _reviewsFuture,
       builder: (context, snapshot) {
@@ -806,27 +1194,30 @@ class _ReviewsTabState extends State<_ReviewsTab> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'Reviews',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const Spacer(),
 
-                  // Styled sort dropdown
+                  // Sort dropdown
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: a11y.highContrast ? Colors.white : cs.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(
+                        color: a11y.highContrast
+                            ? Colors.black
+                            : cs.outline.withValues(alpha: 0.35),
+                        width: a11y.highContrast ? 1.5 : 1,
+                      ),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _sortMode,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
                         items: const [
                           DropdownMenuItem(
                             value: 'newest',
@@ -845,15 +1236,10 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                             child: Text('Lowest'),
                           ),
                         ],
-                        onChanged: (v) {
+                        onChanged: (v) async {
                           if (v == null) return;
-                          setState(() {
-                            _sortMode = v;
-                            _reviewsFuture = _repo.fetchVenueReviews(
-                              widget.venue.id,
-                              sortMode: _sortMode,
-                            );
-                          });
+                          setState(() => _sortMode = v);
+                          await _refresh();
                         },
                       ),
                     ),
@@ -867,35 +1253,64 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                       onPressed: _openAddReview,
                       icon: const Icon(Icons.edit, size: 18),
                       label: const Text('Write'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+                      style: a11y.highContrast
+                          ? ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            )
+                          : ElevatedButton.styleFrom(
+                              backgroundColor: cs.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                     ),
                   ),
                 ],
               ),
 
               const SizedBox(height: 20),
+
               if (reviews.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 60),
                   child: Center(
                     child: Text(
                       "No reviews yet.\nBe the first to leave one!",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurface.withValues(alpha: 0.75),
+                      ),
                     ),
                   ),
                 )
               else
-                ...reviews.map(
-                  (r) => Padding(
+                ...reviews.map((r) {
+                  final badges =
+                      _badgesByUser[r.userId] ?? const <BadgeModel>[];
+                  final isHighlighted =
+                      widget.highlightReviewId != null &&
+                      r.id.toString() == widget.highlightReviewId;
+
+                  return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ReviewCard(
                       review: r,
+                      venueId: widget.venue.id,
+                      venueName: widget.venue.name,
+                      badges: badges,
+                      animateBadgeIds: _animatedBadgeIdsByUser[r.userId] ?? {},
+                      isHighlighted: isHighlighted,
                       canManage:
                           currentUserId != null && r.userId == currentUserId,
                       onDelete: () async {
@@ -904,7 +1319,6 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                         await _repo.deleteReview(r.id);
                         await _refresh();
                       },
-
                       onEdit: () async {
                         final result = await showDialog<_ReviewDraft>(
                           context: context,
@@ -922,23 +1336,23 @@ class _ReviewsTabState extends State<_ReviewsTab> {
                             rating: result.rating,
                             text: result.text,
                           );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Review updated.")),
-                            );
-                          }
+
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Review updated.")),
+                          );
+
                           await _refresh();
                         } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Edit failed: $e")),
-                            );
-                          }
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Edit failed: $e")),
+                          );
                         }
                       },
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           ),
         );
@@ -949,50 +1363,140 @@ class _ReviewsTabState extends State<_ReviewsTab> {
 
 class _ReviewCard extends StatelessWidget {
   final ReviewModel review;
+  final int venueId;
+  final String venueName;
   final bool canManage;
-
-  // Use VoidCallback so IconButton.onPressed is happy.
-  final VoidCallback? onDelete;
-  final VoidCallback? onEdit;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final List<BadgeModel> badges;
+  final Set<int> animateBadgeIds;
+  final bool isHighlighted;
 
   const _ReviewCard({
+    super.key,
     required this.review,
+    required this.venueId,
+    required this.venueName,
     required this.canManage,
-    this.onDelete,
-    this.onEdit,
+    required this.onEdit,
+    required this.onDelete,
+    required this.badges,
+    required this.animateBadgeIds,
+    this.isHighlighted = false,
   });
+  String _displayName(ReviewModel review) {
+    final username = review.username?.trim();
+    if (username != null && username.isNotEmpty) {
+      return username;
+    }
+
+    if (review.userId.length >= 6) {
+      return review.userId.substring(0, 6);
+    }
+
+    return 'User';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final dateText = review.createdAt == null
         ? ""
         : "${review.createdAt!.month}/${review.createdAt!.day}/${review.createdAt!.year}";
 
     final body = (review.text ?? "").trim();
+    final visibleBadges = badges;
+    final extraCount = (badges.length - visibleBadges.length).clamp(0, 999);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isHighlighted
+            ? Colors.amber.withValues(alpha: 0.12)
+            : (a11y.darkMode ? theme.scaffoldBackgroundColor : Colors.white)
+                  .withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: Colors.black12.withOpacity(0.06)),
+        border: Border.all(
+          color: isHighlighted
+              ? Colors.amber
+              : a11y.highContrast
+              ? Colors.black
+              : cs.outline.withValues(alpha: 0.35),
+          width: isHighlighted ? 2 : (a11y.highContrast ? 1.5 : 1),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // NEW: Author row + badges
           Row(
             children: [
-              _Stars(rating: review.rating),
-              const Spacer(),
-              if (dateText.isNotEmpty)
+              Text(
+                _displayName(review),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 10),
+
+              if (badges.isNotEmpty)
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ...visibleBadges.map((b) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _MiniBadge(
+                              badge: b,
+                              animate: animateBadgeIds.contains(b.badgeId),
+                            ),
+                          );
+                        }),
+
+                        if (extraCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.grey.withValues(alpha: 0.20),
+                              ),
+                            ),
+                            child: Text(
+                              '+$extraCount',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              if (dateText.isNotEmpty) ...[
+                const SizedBox(width: 10),
                 Text(
                   dateText,
                   style: TextStyle(
@@ -1001,8 +1505,46 @@ class _ReviewCard extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Stars + actions row
+          Row(
+            children: [
+              _Stars(rating: review.rating),
+              const Spacer(),
+
+              IconButton(
+                tooltip: 'Share review',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.share_outlined, size: 20),
+                onPressed: () {
+                  ReviewShareHelper.showShareSheet(
+                    context,
+                    review: review,
+                    venueName: venueName,
+                    venueId: venueId,
+                  );
+                },
+              ),
+
+              // Report for non-owner
+              if (!canManage)
+                IconButton(
+                  tooltip: 'Report Review',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.flag_outlined,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => _showReportDialog(context, review),
+                ),
+
+              // Edit/Delete for owner
               if (canManage) ...[
-                const SizedBox(width: 8),
                 IconButton(
                   tooltip: 'Edit',
                   visualDensity: VisualDensity.compact,
@@ -1024,7 +1566,14 @@ class _ReviewCard extends StatelessWidget {
 
           if (body.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(body, style: const TextStyle(height: 1.4, fontSize: 14.5)),
+            Text(
+              body,
+              style: TextStyle(
+                height: 1.4,
+                fontSize: 14.5,
+                color: (a11y.darkMode ? Colors.white : Colors.black87),
+              ),
+            ),
           ],
 
           if (review.photos.isNotEmpty) ...[
@@ -1069,6 +1618,173 @@ class _ReviewCard extends StatelessWidget {
       ),
     );
   }
+
+  void _showReportDialog(BuildContext context, ReviewModel review) {
+    showDialog(
+      context: context,
+      builder: (context) => ReportDialog(
+        targetType: 'venue_reviews',
+        targetId: review.id,
+        reportedUserId: review.userId,
+      ),
+    );
+  }
+}
+
+/// Small pill used to render badges next to the user's name
+class _MiniBadge extends StatefulWidget {
+  final BadgeModel badge;
+  final bool animate;
+
+  const _MiniBadge({required this.badge, this.animate = false, super.key});
+
+  @override
+  State<_MiniBadge> createState() => _MiniBadgeState();
+}
+
+class _MiniBadgeState extends State<_MiniBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
+
+    if (widget.animate) {
+      _ctrl.forward(from: 0.0);
+    } else {
+      _ctrl.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MiniBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If it flips from not-animated -> animated, play pop
+    if (!oldWidget.animate && widget.animate) {
+      _ctrl.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final b = widget.badge;
+    final baseColor = _parseHexColor(b.colorHex) ?? cs.primary;
+
+    return ScaleTransition(
+      scale: _scale,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => _showBadgeDialog(context, b, baseColor),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: baseColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: baseColor.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_iconFromKey(b.iconKey), size: 14, color: baseColor),
+              const SizedBox(width: 6),
+              Text(
+                b.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: baseColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _showBadgeDialog(
+    BuildContext context,
+    BadgeModel b,
+    Color color,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withValues(alpha: 0.25)),
+              ),
+              child: Icon(_iconFromKey(b.iconKey), color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                b.name,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          (b.description.trim().isEmpty)
+              ? "No description provided."
+              : b.description,
+          style: const TextStyle(height: 1.35),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color? _parseHexColor(String? hex) {
+    if (hex == null) return null;
+    var cleaned = hex.replaceAll('#', '');
+    if (cleaned.length == 6) cleaned = 'FF$cleaned';
+    final value = int.tryParse(cleaned, radix: 16);
+    if (value == null) return null;
+    return Color(value);
+  }
+
+  static IconData _iconFromKey(String? key) {
+    switch (key) {
+      case 'badge_pathfinder':
+        return Icons.emoji_events_rounded;
+      case 'badge_explorer':
+        return Icons.explore_rounded;
+      default:
+        return Icons.star_rounded;
+    }
+  }
 }
 
 class _Stars extends StatelessWidget {
@@ -1077,13 +1793,16 @@ class _Stars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
     final r = rating.clamp(0, 5);
     return Row(
       children: List.generate(5, (i) {
         return Icon(
           i < r ? Icons.star_rounded : Icons.star_border_rounded,
           size: 18,
-          color: Colors.amber,
+          color: (a11y.highContrast ? Colors.black : Colors.amber),
         );
       }),
     );
@@ -1165,17 +1884,365 @@ class _VideoTileState extends State<_VideoTile> {
   }
 }
 
-class _PostsTab extends StatelessWidget {
+class _PostsTab extends StatefulWidget {
   final VenueModel venue;
   const _PostsTab({required this.venue});
 
   @override
+  State<_PostsTab> createState() => _PostsTabState();
+}
+
+class _PostsTabState extends State<_PostsTab> {
+  final _repo = VenueRepository();
+  late Future<List<VenuePostModel>> _postsFuture;
+  bool _canPost = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _postsFuture = _repo.fetchVenuePosts(widget.venue.id);
+    _loadPermission();
+  }
+
+  Future<void> _loadPermission() async {
+    final canPost = await _repo.canCurrentUserPostForVenue(widget.venue.id);
+    if (!mounted) return;
+    setState(() => _canPost = canPost);
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _postsFuture = _repo.fetchVenuePosts(widget.venue.id);
+    });
+    await _loadPermission();
+  }
+
+  Future<void> _openCreatePostDialog() async {
+    final controller = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create venue post'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Share an update about this venue...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Post'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    try {
+      await _repo.createVenuePost(
+        venueId: widget.venue.id,
+        content: controller.text,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post published.')));
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to publish post: $e')));
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Center(child: Text("Posts coming soon"));
+    return FutureBuilder<List<VenuePostModel>>(
+      future: _postsFuture,
+      builder: (context, snapshot) {
+        final posts = snapshot.data ?? [];
+
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Venue Posts',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  const Spacer(),
+                  if (_canPost)
+                    ElevatedButton.icon(
+                      onPressed: _openCreatePostDialog,
+                      icon: const Icon(Icons.add_comment_outlined, size: 18),
+                      label: const Text('Post'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData)
+                const Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (posts.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Center(
+                    child: Text(
+                      'No posts yet.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                ...posts.map((post) => _VenuePostCard(post: post)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _VenuePostCard extends StatelessWidget {
+  final VenuePostModel post;
+
+  const _VenuePostCard({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateText = post.createdAt == null
+        ? ''
+        : '${post.createdAt!.month}/${post.createdAt!.day}/${post.createdAt!.year}';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.black12.withOpacity(0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.campaign_outlined, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Venue Update',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (dateText.isNotEmpty)
+                Text(
+                  dateText,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            post.content,
+            style: const TextStyle(
+              height: 1.45,
+              fontSize: 14.5,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 /* -------------------- UI Components -------------------- */
+
+class _VenuePhotosCard extends StatefulWidget {
+  final VenueModel venue;
+
+  const _VenuePhotosCard({required this.venue});
+
+  @override
+  State<_VenuePhotosCard> createState() => _VenuePhotosCardState();
+}
+
+class _VenuePhotosCardState extends State<_VenuePhotosCard> {
+  int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = VenueRepository();
+
+    return _Card(
+      title: 'Photos',
+      child: FutureBuilder<List<VenueImageModel>>(
+        future: repo.fetchVenueImages(widget.venue.id),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final images = snapshot.data ?? [];
+
+          if (images.isEmpty) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  widget.venue.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.grey[200],
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Image unavailable',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (_selectedIndex >= images.length) {
+            _selectedIndex = 0;
+          }
+
+          final selectedImage = images[_selectedIndex];
+          final mainImageUrl = repo.getVenueImageUrl(selectedImage.imagePath);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    mainImageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey[200],
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Image unavailable',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (images.length > 1) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 78,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: images.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final img = images[index];
+                      final thumbUrl = repo.getVenueImageUrl(img.imagePath);
+                      final isSelected = index == _selectedIndex;
+
+                      return GestureDetector(
+                        onTap: () async {
+                          final img = images[index];
+
+                          setState(() {
+                            _selectedIndex = index;
+                          });
+
+                          try {
+                            await repo.setPrimaryVenueImage(
+                              venueId: widget.venue.id,
+                              imageId: img.imageId,
+                            );
+                          } catch (e) {
+                            debugPrint('Error setting primary image: $e');
+                          }
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.deepPurple
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              thumbUrl,
+                              width: 100,
+                              height: 78,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 100,
+                                height: 78,
+                                color: Colors.grey[200],
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.broken_image_outlined),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                '${images.length} photo${images.length == 1 ? '' : 's'} available',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
 
 class _Card extends StatelessWidget {
   final String title;
@@ -1185,26 +2252,41 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: a11y.highContrast ? Colors.white : cs.surface,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        border: Border.all(
+          color: a11y.highContrast
+              ? Colors.black
+              : cs.outline.withValues(alpha: 0.18),
+          width: a11y.highContrast ? 2 : 1,
+        ),
+        boxShadow: a11y.highContrast
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: a11y.highContrast ? Colors.black : cs.onSurface,
+            ),
           ),
           const SizedBox(height: 10),
           child,
@@ -1227,16 +2309,26 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return Row(
       children: [
-        Icon(icon, size: 18, color: Colors.deepPurple),
+        Icon(
+          icon,
+          size: 18,
+          color: a11y.highContrast ? Colors.black : cs.primary,
+        ),
         const SizedBox(width: 10),
         SizedBox(
           width: 95,
           child: Text(
             label,
-            style: TextStyle(
-              color: Colors.grey[700],
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: a11y.highContrast
+                  ? Colors.black
+                  : cs.onSurface.withValues(alpha: 0.85),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1244,7 +2336,10 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: a11y.highContrast ? Colors.black : cs.onSurface,
+            ),
           ),
         ),
       ],
@@ -1258,25 +2353,28 @@ class _FeatureChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: a11y.highContrast
+            ? Colors.white
+            : cs.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.deepPurple.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.deepPurple.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(
+          color: a11y.highContrast
+              ? Colors.black
+              : cs.primary.withValues(alpha: 0.25),
+        ),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: theme.textTheme.bodySmall?.copyWith(
           fontSize: 13,
-          color: Colors.deepPurple,
+          color: a11y.highContrast ? Colors.black : cs.primary,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -1290,6 +2388,10 @@ class _AccessibilityScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final score = _computeAccessibilityScore(venue);
     final label = _scoreLabel(score);
     final caption = _scoreCaption(score, venue.totalReviews);
@@ -1332,7 +2434,9 @@ class _AccessibilityScoreCard extends StatelessWidget {
               value: score / 100.0,
               minHeight: 10,
               backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(_scoreColor(score)),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                (a11y.highContrast ? Colors.black : _scoreColor(score)),
+              ),
             ),
           ),
 
@@ -1354,13 +2458,17 @@ class _ScorePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _scoreColor(score);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final color = (a11y.highContrast ? Colors.black : _scoreColor(score));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1387,7 +2495,7 @@ int _computeAccessibilityScore(VenueModel v) {
 
   final tags = v.tags.map((e) => e.toLowerCase().trim()).toList();
 
-  // Positive feature tags (adjust as your tag set evolves)
+  // Positive feature tags (adjustable if tag set evolves)
   const positiveWeights = <String, int>{
     'wheelchair accessible': 18,
     'wheelchair': 14,
@@ -1410,7 +2518,7 @@ int _computeAccessibilityScore(VenueModel v) {
     'low sensory': 6,
   };
 
-  // Negative tags (if you have them)
+  // Negative tags
   const negativeWeights = <String, int>{
     'not wheelchair accessible': -18,
     'stairs only': -16,
@@ -1498,23 +2606,32 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: (a11y.highContrast
+            ? Colors.black.withValues(alpha: 0.12)
+            : color.withValues(alpha: 0.12)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) Icon(icon, size: 16, color: color),
+          if (icon != null)
+            Icon(
+              icon,
+              size: 16,
+              color: (a11y.highContrast ? Colors.black : color),
+            ),
           if (icon != null) const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 13,
-              color: color,
+              color: (a11y.highContrast ? Colors.black : color),
             ),
           ),
         ],
@@ -1858,5 +2975,124 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Location copied.')));
     }
+  }
+}
+
+class ReportDialog extends StatefulWidget {
+  final String targetType;
+  final dynamic targetId;
+  final String reportedUserId;
+
+  const ReportDialog({
+    super.key,
+    required this.targetType,
+    required this.targetId,
+    required this.reportedUserId,
+  });
+
+  @override
+  State<ReportDialog> createState() => _ReportDialogState();
+}
+
+class _ReportDialogState extends State<ReportDialog> {
+  final _repo = VenueRepository();
+  final _detailsController = TextEditingController();
+  String _selectedReason = 'Inappropriate Content';
+  bool _isSubmitting = false;
+
+  final List<String> _reasons = [
+    'Inappropriate Content',
+    'Spam',
+    'Harassment',
+    'False Information',
+    'Other',
+  ];
+
+  Future<void> _submitReport() async {
+    setState(() => _isSubmitting = true);
+    try {
+      await _repo.reportContent(
+        targetType: widget.targetType,
+        targetId: widget.targetId,
+        reportedUserId: widget.reportedUserId,
+        reason: _selectedReason,
+        description: _detailsController.text,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Report submitted. Thank you.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to submit report: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Report Content"),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Why are you reporting this?",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 10),
+            DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedReason,
+              items: _reasons
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                  .toList(),
+              onChanged: _isSubmitting
+                  ? null
+                  : (val) => setState(() => _selectedReason = val!),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _detailsController,
+              enabled: !_isSubmitting,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: "Additional details (optional)",
+                hintStyle: TextStyle(fontSize: 14),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submitReport,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text("Submit Report"),
+        ),
+      ],
+    );
   }
 }

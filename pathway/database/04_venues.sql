@@ -27,3 +27,17 @@ CREATE TABLE IF NOT EXISTS pathway.venues (
 -- indexes
 CREATE INDEX IF NOT EXISTS idx_venues_city ON pathway.venues(city);
 CREATE INDEX IF NOT EXISTS idx_venues_state ON pathway.venues(state);
+
+
+--2 Creating the saved venues table(favorite) This is me 
+CREATE TABLE IF NOT EXISTS pathway.saved_venues (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES pathway.users(user_id) ON DELETE CASCADE,
+  venue_id BIGINT REFERENCES pathway.venues(venue_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (user_id, venue_id) -- This will help with saving/favoriting the same venue twice
+);
+
+--indexes for perfomance 
+CREATE INDEX IF NOT EXISTS idx_venues_city ON pathway.venues(city);
+CREATE INDEX IF NOT EXISTS idx_venues_state ON pathway.venues(state);

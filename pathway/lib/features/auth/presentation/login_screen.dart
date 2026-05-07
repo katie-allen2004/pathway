@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pathway/core/routing/app_router.dart';
 import 'package:pathway/core/widgets/app_scaffold.dart';
 import 'signup_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'forgot_password_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 // Import validators
 import 'package:pathway/core/utils/validators.dart';
@@ -76,8 +80,6 @@ class GradientStrokeText extends StatelessWidget {
     );
   }
 }
-
-// Change to StatefulWidget to manage form state and text input
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -91,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -100,39 +103,46 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submitLoginForm() async {
-    if (_formKey.currentState!.validate()) {
-      print('Attempting Login for: ${_emailController.text}');
+    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading) return;
 
-      try {
-        await Supabase.instance.client.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
+    setState(() => _isLoading = true);
 
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const PathwayNavShell()),
-        );
-      } on AuthException catch (e) {
-        print('Login failed: ${e.message}');
-      } catch (e) {
-        print('Login failed: $e');
-      }
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      // Load AccessibilitySettings from database to apply settings at sign-in
+      if (!mounted) return;
+      await context.read<AccessibilityController>().loadFromDatabase();
+
+      if (!mounted) return;
+      context.push('/signup');
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   // Function to navigate to the Signup screen
   void _navigateToSignup() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        // This links to the SignupScreen you just built!
-        builder: (context) => const SignupScreen(),
-      ),
-    );
+    context.push('/signup');
   }
 
   @override
   Widget build(BuildContext context) {
-    const bgColor = Color(0xFFE9ECF7); // close to your Figma tint (can tweak)
+    const bgColor = Color(0xFFE9ECF7); 
     const primary = Color(0xFF4754B8);
     const secondary = Color(0xFFB7BEF4);
 
@@ -188,7 +198,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(22),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.10),
+                            color: Colors.black.withValues(alpha: 0.10),
+
                             blurRadius: 18,
                             offset: const Offset(0, 10),
                           ),
@@ -292,12 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               alignment: Alignment.centerLeft,
                               child: TextButton(
                                 onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const ForgotPasswordScreen(),
-                                    ),
-                                  );
+                                  context.push('/forgot-password');
                                 },
 
                                 style: TextButton.styleFrom(
@@ -321,7 +327,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: double.infinity,
                               height: 44,
                               child: ElevatedButton(
-                                onPressed: _submitLoginForm,
+                                onPressed: _isLoading ? null : _submitLoginForm,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: primary,
                                   foregroundColor: Colors.white,
@@ -330,13 +336,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   elevation: 6,
                                 ),
-                                child: Text(
-                                  'log in',
-                                  style: GoogleFonts.lato(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        'log in',
+                                        style: GoogleFonts.lato(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                               ),
                             ),
 

@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:pathway/core/theme/app_theme.dart';
+import 'package:pathway/core/theme/theme.dart';
+import 'package:pathway/core/widgets/widgets.dart';
+import 'package:pathway/features/profile/data/profile_repository.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -12,11 +19,12 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
 
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _currentPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final _profileRepo = ProfileRepository();
 
   final Map<String, bool> _tags = {
     'Wheelchair user': false,
@@ -26,28 +34,50 @@ class _EditProfilePageState extends State<EditProfilePage> {
     'Neurodivergent': false,
   };
 
-  ImageProvider? _profileImage;
+  XFile? _profileImage;
 
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
+    _loadProfileData();
+    _loadProfilePhoto();
+    _loadAccessibilityTags();
+  }
 
-    // TODO: preload from user profile
-    // ex:
-    // _firstNameCtrl.text = profile.firstName;
-    // _lastNameCtrl.text = profile.lastName;
-    // _profileImage = NetworkImage(profile.avatarUrl);
-    _firstNameCtrl.text = 'John';
-    _lastNameCtrl.text = 'Doe';
-    _profileImage = const AssetImage('');
+  Future<void> _loadProfileData() async {
+    final displayName = await _profileRepo.getDisplayName();
+    if (mounted) {
+      setState(() {
+        _nameCtrl.text = displayName ?? '';
+      });
+    }
+  }
+
+  Future<void> _loadProfilePhoto() async {
+    final url = await _profileRepo.getProfilePictureUrl();
+    if (mounted && url != null) {
+      setState(() {
+        _profileImage = XFile(url);
+      });
+    }
+  }
+
+  Future<void> _loadAccessibilityTags() async {
+    final tags = await _profileRepo.getUserAccessibilityTags();
+    if (mounted && tags != null) {
+      setState(() {
+        for (final tag in _tags.keys) {
+          _tags[tag] = tags.contains(tag);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
+    _nameCtrl.dispose();
     _currentPasswordCtrl.dispose();
     _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -55,14 +85,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickProfilePhoto() async {
-    // TODO: wire this with image_picker later
-    // final picker = ImagePicker();
-    // final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    // if (file == null) return;
-    // setState(() => _profileImage = FileImage(File(file.path)));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('TODO: add image picker')),
-    );
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (file == null) return;
+    setState(() => _profileImage = file);
+  }
+
+  ImageProvider? _avatarProvider() {
+    if (_profileImage == null) return null;
+    if (kIsWeb) {
+      return NetworkImage(_profileImage!.path);
+    }
+
+    if (_profileImage!.path.startsWith('http')) {
+      return NetworkImage(_profileImage!.path);
+    }
+
+    return FileImage(File(_profileImage!.path));
   }
 
   String? _validateRequired(String? v, String field) {
@@ -99,22 +138,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
       .map((e) => e.key)
       .toList();
 
-      // TODO: call API
-      // await profileService.updateProfile(
-      // firstName: _firstNameCtrl.text.trim(),
-      // lastName: _lastNameCtrl.text.trim(),
-      // tags: selectedTags,
-      // // photo: ...,
-      // );
-      //
-      // if (_newPasswordCtrl.text.trim().isNotEmpty) {
-      //  await profileService.changePassword(
-      //    currentPassword: _currentPasswordCtrl.text.trim(),
-      //    newPassword: _newPasswordCtrl.text.trim(),
-      //  );
-      // }
-
-      await Future.delayed(const Duration(milliseconds: 400)); // remove ltr
+      await _profileRepo.updateProfile(
+        displayName: _nameCtrl.text.trim(),
+        photo: _profileImage,
+        tags: selectedTags,
+        currentPassword: _currentPasswordCtrl.text,
+        newPassword: _newPasswordCtrl.text,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,6 +163,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final cardColor = a11y.highContrast ? Colors.white : cs.surface;
+    final cardBorderColor = a11y.highContrast
+      ? Colors.black
+      : cs.outline.withValues(alpha: 0.18);
+
+    final helperColor = a11y.highContrast
+      ? Colors.black
+      : cs.onSurface.withValues(alpha: 0.72);
+
+    final titleColor = a11y.highContrast ? Colors.black : cs.onSurface;
+
     return Scaffold(
       appBar: PathwayAppBar(
         height: 100,
@@ -140,16 +185,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
         title: Padding(
           padding: EdgeInsets.only(top: 2),
           child: Text(
-                    'Edit profile information',
-                    
-                  ),
+            'Edit profile information',  
+            style: theme.appBarTheme.titleTextStyle,                 
             ),
+          ),
       ),
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: AppSpacing.page,
             children: [
               Center(
                 child: Stack(
@@ -157,14 +202,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 44,
-                      backgroundImage: _profileImage,
+                      backgroundColor: a11y.highContrast
+                          ? Colors.white
+                          : cs.surfaceContainerHighest,
+                      backgroundImage: _avatarProvider(),
+                      child: _avatarProvider() == null
+                          ? Icon(
+                              Icons.person_rounded,
+                              size: 44,
+                              color: a11y.highContrast
+                                  ? Colors.black
+                                  : cs.onSurface.withValues(alpha: 0.7),
+                            )
+                          : null,
                     ),
                     Material(
                       shape: const CircleBorder(),
-                      color: const Color.fromARGB(255, 76, 89, 185),
+                      color: a11y.highContrast ? Colors.black : cs.primary,
                       child: IconButton(
-                        icon: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+                        icon: Icon(
+                          Icons.camera_alt_rounded, 
+                          color: a11y.highContrast ? Colors.white : cs.onPrimary, 
+                          size: 18
+                        ),
                         onPressed: _isSaving ? null : _pickProfilePhoto,
+                        tooltip: 'Change profile photo',
                       ),
                     ),
                   ],
@@ -173,31 +235,34 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 18),
 
               Card(
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  side: BorderSide(
+                    color: cardBorderColor,
+                    width: a11y.highContrast ? 2 : 1,
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Name', style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _firstNameCtrl,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'First Name',
-                          border: OutlineInputBorder(),
+                      Text(
+                        'Name',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
                         ),
-                        validator: (v) => _validateRequired(v, 'First name'),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: _lastNameCtrl,
-                        textInputAction: TextInputAction.done,
+                        controller: _nameCtrl,
+                        textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
-                          labelText: 'Last name',
-                          border: OutlineInputBorder(),
+                          labelText: 'Display name',
                         ),
-                        validator: (v) => _validateRequired(v, 'Last name'),
+                        validator: (v) => _validateRequired(v, 'Display name'),
                       ),
                     ],
                   ),
@@ -207,19 +272,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
 
               Card(
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  side: BorderSide(
+                    color: cardBorderColor,
+                    width: a11y.highContrast ? 2 : 1,
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Password', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Password',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _currentPasswordCtrl,
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'Current password',
-                          border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -228,7 +306,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'New password (minimum 8 characters)',
-                          border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -237,16 +314,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'Confirm new password',
-                          border: OutlineInputBorder(),
                         ),
                         validator: _validatePasswordConfirm,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Leave password fields blank to keep your current password',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-
-                      )
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: helperColor,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -255,12 +332,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
 
               Card(
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  side: BorderSide(
+                    color: cardBorderColor,
+                    width: a11y.highContrast ? 2 : 1,
+                  ),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: AppSpacing.cardPadding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Accessibility tags', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Accessibility tags',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -268,9 +359,42 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         children: _tags.entries.map((entry) {
                           final label = entry.key;
                           final selected = entry.value;
+
+                          final selectedColor = a11y.highContrast
+                            ? Colors.black
+                            : cs.primary;
+
+                          final unselectedBorder = a11y.highContrast
+                            ? Colors.black
+                            : cs.primary.withValues(alpha: 0.35);
+
+                          final unselectedBackground = a11y.highContrast
+                            ? Colors.white
+                            : cs.surface;
+
+                          final unselectedText = a11y.highContrast
+                            ? Colors.black
+                            : cs.onSurface;
+
                           return FilterChip(
                             label: Text(label),
                             selected: selected,
+                            selectedColor: selectedColor,
+                            checkmarkColor: 
+                              a11y.highContrast ? Colors.white : cs.onPrimary,
+                            backgroundColor: unselectedBackground,
+                            side: BorderSide(
+                              color: selected ? selectedColor : unselectedBorder,
+                              width: a11y.highContrast ? 1.5 : 1,
+                            ),
+                            labelStyle: theme.textTheme.bodySmall?.copyWith(
+                              color: selected
+                                ? (a11y.highContrast
+                                  ? Colors.white
+                                  : cs.primary)
+                                : unselectedText,
+                              fontWeight: FontWeight.w600,
+                            ),
                             onSelected: _isSaving
                               ? null
                               : (v) => setState(() => _tags[label] = v),
@@ -279,10 +403,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
 
                       const SizedBox(height: 8),
-                      const Text(
-                        'Choose what youre comfortable sharing.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      )
+                      Text(
+                        'Choose what you\'re comfortable sharing.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: helperColor,
+                      ),
+                      ),
                     ],
                   ),
                 ),
@@ -296,18 +422,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 76, 89, 185),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor:
+                        a11y.highContrast ? Colors.black : cs.primary,
+                    foregroundColor:
+                        a11y.highContrast ? Colors.white : cs.onPrimary,
                   ),
                   child: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: a11y.highContrast
+                                ? Colors.white
+                                : cs.onPrimary,
+                        ),
                     )
-                    : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w700)),
+                    : Text(
+                        'Save changes', 
+                        style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: a11y.highContrast
+                                ? Colors.white
+                                : cs.onPrimary,
+                        ),
                 ),
+              ),
               ),
             ],
           ),

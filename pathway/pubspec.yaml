@@ -30,13 +30,29 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
+# The following adds the Cupertino Icons font to your application.
+# Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  google_fonts: ^7.1.0
+  google_fonts: ^8.0.1
   supabase_flutter: ^2.12.0
-
+  image_picker: ^1.2.1 
+  path: ^1.9.1
+  logger: ^2.6.2
+  provider: ^6.1.5+1
+  url_launcher: ^6.1.10
+  shared_preferences: ^2.2.2
+  flutter_riverpod: ^3.3.1
+  google_maps_flutter: ^2.15.0
+  geocoding: ^4.0.0
+  intl: ^0.20.2
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+  share_plus: ^11.1.0
+  geolocator: ^14.0.2
+  flutter_typeahead: ^5.2.0
+  icon_decoration: ^2.1.0
+  go_router: ^17.2.2
+    
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,6 +85,16 @@ flutter:
           style: italic
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
+    - family: OpenDyslexic
+      fonts: 
+        - asset: assets/fonts/OpenDyslexic-Regular.otf
+        - asset: assets/fonts/OpenDyslexic-Italic.otf
+          style: italic
+        - asset: assets/fonts/OpenDyslexic-Bold.otf
+          weight: 700
+        - asset: assets/fonts/OpenDyslexic-BoldItalic.otf
+          weight: 700
+          style: italic
           
   uses-material-design: true
 

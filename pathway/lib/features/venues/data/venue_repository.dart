@@ -384,7 +384,16 @@ class VenueRepository {
         .select('review_id')
         .single();
 
-    return (result['review_id'] as num).toInt();
+    final int reviewId = (result['review_id'] as num).toInt();
+
+    // Award badges
+    try {
+      await _client.rpc('evaluate_user_badges', params: {'p_user_id': user.id});
+    } catch (e) {
+      debugPrint('evaluate_user_badges failed: $e');
+    }
+
+    return reviewId;
   }
 
   // Upload bytes to Supabase storage and return the public URL.
@@ -430,13 +439,6 @@ class VenueRepository {
       'review_id': reviewId,
       'url': url,
     });
-
-    // Award badges
-    try {
-      await _client.rpc('evaluate_user_badges', params: {'p_user_id': user.id});
-    } catch (e) {
-      debugPrint('evaluate_user_badges failed: $e');
-    }
   }
 
   /// Fetch badges for a single user (for Profile)

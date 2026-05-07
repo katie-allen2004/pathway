@@ -85,12 +85,10 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
     return Scaffold(
       appBar: AppBar(

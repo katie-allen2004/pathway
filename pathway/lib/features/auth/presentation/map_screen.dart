@@ -1412,6 +1412,7 @@ class _MapScreenState extends State<MapScreen> {
                         ..._allVenues
                             .where((v) {
                               // Search Logic
+                              bool isApproved = v.status == 'approved';
                               bool matchesSearch = true;
                               if (_searchController.text.isNotEmpty) {
                                 matchesSearch =
@@ -1435,8 +1436,7 @@ class _MapScreenState extends State<MapScreen> {
                                     (distanceInMeters / 1609.34) <=
                                     _selectedDistance;
                               }
-                              return matchesSearch && matchesRadius;
-                            })
+                              return isApproved && matchesSearch && matchesRadius;                            })
                             .map((v) {
                               return fmap.Marker(
                                 point: latlng.LatLng(

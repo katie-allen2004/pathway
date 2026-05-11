@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../models/user_profile.dart';
 import 'package:pathway/core/theme/theme.dart';
@@ -124,51 +126,6 @@ class _ConversationsPageState extends State<ConversationsPage> {
     );
   }
 }
-
-  // Dummy conversations to preview the UI (1:1 and groups)
-  final List<_Conversation> _mockConversations = [
-    _Conversation.oneToOne(
-      id: 'c1',
-      title: 'Alex Johnson',
-      avatarUrls: [null],
-      lastMessage: 'See you at 10 — can you bring the map?',
-      lastSender: null,
-      lastActivity: DateTime.now().subtract(const Duration(minutes: 6)),
-      unread: 2,
-      muted: false,
-      locked: false,
-      online: true,
-    ),
-    _Conversation.group(
-      id: 'c2',
-      title: 'Weekend Hike (5)',
-      avatarUrls: [
-        'https://picsum.photos/seed/1/200',
-        'https://picsum.photos/seed/2/200',
-        'https://picsum.photos/seed/3/200',
-      ],
-      lastMessage: 'I can bring water and snacks.',
-      lastSender: 'Maya',
-      lastActivity: DateTime.now().subtract(const Duration(hours: 3)),
-      unread: 0,
-      muted: true,
-      locked: false,
-    ),
-    _Conversation.group(
-      id: 'c3',
-      title: 'Work Buddies',
-      avatarUrls: [
-        'https://picsum.photos/seed/4/200',
-        'https://picsum.photos/seed/5/200',
-      ],
-      lastMessage: 'Shared the doc in #files',
-      lastSender: 'Jordan',
-      lastActivity: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
-      unread: 7,
-      muted: false,
-      locked: true,
-    ),
-  ];
 
   @override
   void initState() {
@@ -719,6 +676,8 @@ class _ConversationsPageState extends State<ConversationsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
     return Scaffold(
       appBar: PathwayAppBar(
         height: 100,
@@ -757,7 +716,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showNewConversationPicker,
-        backgroundColor: AppColors.primary,
+        backgroundColor: a11y.highContrast ? Colors.black : cs.primary,
         child: const Icon(Icons.create_rounded, color: Colors.white),
       ),
       body: _isSearching ? _buildSearchList() : _buildInbox(),
@@ -765,6 +724,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
   }
 
   Widget _buildSearchList() {
+    final a11y = context.watch<AccessibilityController>().settings;
     if (_isQuerying) return const Center(child: CircularProgressIndicator());
     if (_searchController.text.isNotEmpty && _searchResults.isEmpty) {
       return Center(child: Text("No profiles found.", style: Theme.of(context).textTheme.bodyMedium));
@@ -783,12 +743,12 @@ class _ConversationsPageState extends State<ConversationsPage> {
               backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
                   ? NetworkImage(user.avatarUrl!)
                   : null,
-              backgroundColor: Colors.deepPurple.shade50,
+              backgroundColor: a11y.highContrast ? Colors.black : Colors.deepPurple.shade50,
               child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
                   ? Text(
                       user.userName.isNotEmpty ? user.userName[0] : '?',
-                      style: const TextStyle(
-                        color: AppColors.primary,
+                      style: TextStyle(
+                        color: a11y.highContrast ? Colors.white : AppColors.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     )
@@ -1581,6 +1541,9 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
     return SafeArea(
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.75,
@@ -1613,7 +1576,7 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
                   hintText: 'Search followed users',
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: a11y.darkMode ? cs.surface : Colors.grey.shade100,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -1656,9 +1619,9 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
                           ),
                           title: Text(displayName),
                           trailing: isSelected
-                              ? const Icon(
+                              ? Icon(
                                   Icons.check_circle,
-                                  color: AppColors.primary,
+                                  color: a11y.highContrast ? Colors.black : cs.primary,
                                 )
                               : const Icon(Icons.circle_outlined),
                         );
@@ -1670,6 +1633,7 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
+                  style: ButtonStyle(backgroundColor: WidgetStateProperty.all(a11y.highContrast ? Colors.black : cs.primary)),
                   onPressed: _selectedUserIds.isEmpty
                       ? null
                       : () {

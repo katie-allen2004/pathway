@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:pathway/core/widgets/pathway_nav_bar.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:pathway/core/services/notification_controller.dart';
-import 'package:pathway/models/notification.dart';
-import '/features/messaging/presentation/pages/conversations_page.dart';
-import '/features/auth/presentation/map_screen.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
+import '/features/profile/data/profile_repository.dart';
+import 'package:go_router/go_router.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,6 +15,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _supabase = Supabase.instance.client;
+
   bool _isVenuesExpanded = false;
   bool _isReviewsExpanded = false;
 
@@ -27,6 +29,10 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final a11y = context.watch<AccessibilityController>().settings;
+
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
@@ -35,8 +41,11 @@ class _HomePageState extends State<HomePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Filter Venues",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text("Filter Venues",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700
+                      )
+                    ),//TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
                   Text("Minimum Rating: ${_minRating.toStringAsFixed(1)} Stars"),
                   Slider(
@@ -73,7 +82,8 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50)),
+                        minimumSize: const Size.fromHeight(50),
+                        backgroundColor: a11y.highContrast ? Colors.black : cs.primary),
                     onPressed: () => Navigator.pop(context),
                     child: const Text("Apply Filters"),
                   ),
@@ -91,57 +101,30 @@ class _HomePageState extends State<HomePage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pathway'),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
-          ),
-          ElevatedButton(
-            onPressed: () {
-              InAppNotificationController.instance.show(
-                const InAppNotification(
-                  title: 'Test',
-                  body: 'Live feed updated!',
-                ),
-              );
-            },
-            child: const Text('Show notification'),
-          )
-        ],
+      appBar: PathwayAppBar(
+        title: FutureBuilder<String?>(
+          future: ProfileRepository().getDisplayName(),
+          builder: (context, snapshot) {
+            final displayName = snapshot.data ?? 'Guest';
+            return Padding(
+              padding: const EdgeInsets.only(top: 2.0),
+              child: Text(
+                'Welcome back, $displayName!',
+                style: theme.appBarTheme.titleTextStyle,
+              ),
+            );
+          }
+        ),
+        centertitle: false,
+        height: 100
       ),
+
+
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back, Pathwalker! 👋',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, size: 18),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Nearby venues around you',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
             SliverToBoxAdapter(
               child: Padding(
@@ -179,7 +162,7 @@ class _HomePageState extends State<HomePage> {
                 final filteredVenues = snapshot.data!.where((v) {
                   final ratingMatch = (v['avg_rating'] ?? 0.0) >= _minRating;
                   final tagMatch = _selectedTag == null || 
-                                   (v['features'] as List).contains(_selectedTag);
+                                   List<String>.from(v['features'] ?? []).contains(_selectedTag);
                   return ratingMatch && tagMatch;
                 }).toList();
 
@@ -198,13 +181,15 @@ class _HomePageState extends State<HomePage> {
                   itemCount: displayVenues.length,
                   itemBuilder: (context, index) {
                     final v = displayVenues[index];
+
                     return Padding(
+                      key: ValueKey('venue-${v['venue_id']}'),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: _VenueCard(
                         venue: {
                           'name': v['name'] ?? 'Untitled',
                           'city': v['city'] ?? '',
-                          'score': (v['avg_rating'] ?? 0.0).toDouble(), 
+                          'score': (v['avg_rating'] as num?)?.toDouble() ?? 0.0, 
                           'features': List<String>.from(v['features'] ?? []),
                         },
                       ),
@@ -241,7 +226,9 @@ class _HomePageState extends State<HomePage> {
                   itemCount: displayReviews.length,
                   itemBuilder: (context, index) {
                     final data = displayReviews[index];
+
                     return Padding(
+                      key: ValueKey('review-${data['review_id']}'),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: _ReviewCard(
                         review: {
@@ -278,8 +265,7 @@ class _QuickActionsRow extends StatelessWidget {
             icon: Icons.map_outlined, 
             label: 'Map',
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen()));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening Map...")));
+              context.go('/map');
             },
           ),
         ),
@@ -297,8 +283,7 @@ class _QuickActionsRow extends StatelessWidget {
             icon: Icons.chat_bubble_outline, 
             label: 'Messages',
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const ConversationsPage()));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening Messages...")));
+              context.go('/messages');
             },
           ),
         ),
@@ -321,6 +306,8 @@ class _QuickActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
@@ -333,7 +320,10 @@ class _QuickActionButton extends StatelessWidget {
         children: [
           Icon(icon),
           const SizedBox(height: 4),
-          Text(label, style: theme.textTheme.labelMedium),
+          Text(label, 
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: Colors.white,
+            )),
         ],
       ),
     );
@@ -383,7 +373,7 @@ class _VenueCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
-                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
                   ),
                   child: Row(
                     children: [
@@ -420,6 +410,8 @@ class _ReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final user = review['user'] as String;
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -436,7 +428,7 @@ class _ReviewCard extends StatelessWidget {
                 Row(
                   children: List.generate(5, (i) => Icon(
                     i < (review['rating'] as int) ? Icons.star : Icons.star_border,
-                    size: 16, color: Colors.amber,
+                    size: 16, color: a11y.highContrast ? Colors.black : Colors.amber,
                   )),
                 ),
               ],
@@ -451,43 +443,3 @@ class _ReviewCard extends StatelessWidget {
     );
   }
 }
-/*
-// --- dummy data just to make the UI feel real for now ---
-
-final List<Map<String, Object>> _dummyVenues = [
-  {
-    'name': 'Bluebird Cafe',
-    'city': 'Albuquerque, NM',
-    'score': 4.5,
-    'features': ['Ramp', 'Accessible restroom', 'Wide entrance'],
-  },
-  {
-    'name': 'Downtown Library',
-    'city': 'Albuquerque, NM',
-    'score': 4.8,
-    'features': ['Elevator', 'Braille signs', 'Quiet space'],
-  },
-  {
-    'name': 'Sunset Theater',
-    'city': 'Albuquerque, NM',
-    'score': 4.1,
-    'features': ['Reserved seating', 'Assistive listening', 'Ramp'],
-  },
-];
-
-final List<Map<String, Object>> _dummyReviews = [
-  {
-    'user': 'Alex',
-    'venue': 'Bluebird Cafe',
-    'rating': 5,
-    'text':
-        'Great ramp access and friendly staff. Tables are spaced out enough for my wheelchair.',
-  },
-  {
-    'user': 'Jordan',
-    'venue': 'Downtown Library',
-    'rating': 4,
-    'text':
-        'Elevator is a bit slow but everything is clearly labeled and easy to navigate.',
-  },
-];*/

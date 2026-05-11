@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:pathway/core/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pathway/features/auth/presentation/login_screen.dart';
 import 'package:pathway/core/services/accessibility_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:pathway/models/accessibility_settings.dart';
@@ -328,7 +327,13 @@ Widget _buildStatusIcon(String status, {bool highContrast = false}) {
 
   Future<_ProfileHeaderData> _fetchHeader() async {
     final authUser = supabase.auth.currentUser;
-    if (authUser == null) throw Exception('Not signed in');
+      if (authUser == null) {
+        return _ProfileHeaderData(
+          displayName: '',
+          email: '',
+          avatarUrl: null,
+        );
+      }
 
     final profileRow = await supabase
         .schema('pathway')
@@ -373,12 +378,10 @@ Widget _buildStatusIcon(String status, {bool highContrast = false}) {
       await a11y.update(AccessibilitySettings.defaults());
 
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
+      context.go('/login');
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Sign out failed: $e'),

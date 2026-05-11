@@ -97,12 +97,19 @@ class ProfileRepository {
     final tagIds = (tagRows as List)
         .map((r) => (r['tag_id'] as num).toInt())
         .toList();
+    
+    if (tagIds.isEmpty) {
+      throw Exception(
+        'No matching accessibility tags found for: ${tagNames.join(', ')}',
+      );
+    }
 
     final inserts = tagIds
         .map((tagId) => {'user_id': userId, 'tag_id': tagId})
         .toList();
 
     await supabase
+        .schema('pathway')
         .from('user_accessibility_tags')
         .insert(inserts);
   }
@@ -183,18 +190,22 @@ class ProfileRepository {
   }
 
   // Helper: Get user's accessibility tags
-  Future<List<String>?> getUserAccessibilityTags() async {
-    final userId = await _getInternalUserId();
+  Future<List<String>> getUserAccessibilityTags() async {
+  final userId = await _getInternalUserId();
 
-    final rows = await supabase
-        .schema('pathway')
-        .from('user_accessibility_tags')
-        .select('accessibility_tags(tag_name)')
-        .eq('user_id', userId);
+  final rows = await supabase
+      .schema('pathway')
+      .from('user_accessibility_tags')
+      .select('tag_id, accessibility_tags(tag_name)')
+      .eq('user_id', userId);
 
-    return (rows as List)
-        .map((r) => r['accessibility_tags']?['tag_name'] as String?)
-        .whereType<String>()
-        .toList();
+  return (rows as List)
+      .map((row) {
+        final tag = row['accessibility_tags'];
+        if (tag == null) return null;
+        return tag['tag_name'] as String?;
+      })
+      .whereType<String>()
+      .toList();
   }
 }

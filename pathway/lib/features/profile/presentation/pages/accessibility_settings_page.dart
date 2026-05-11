@@ -15,7 +15,6 @@ class AccessibilitySettingsPage extends StatefulWidget {
 }
 
 class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
-  // TODO: Load/save these settings from Supabase
 
   double textScale = 1.0; // 1.0 = default
   @override

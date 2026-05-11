@@ -65,6 +65,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _loadAccessibilityTags() async {
+    final savedTags = await _profileRepo.getUserAccessibilityTags();
+
+    if (!mounted) return;
+
+    setState(() {
+      for (final tag in _tags.keys) {
+        _tags[tag] = savedTags.contains(tag);
+      }
+    });
+    /*
     final tags = await _profileRepo.getUserAccessibilityTags();
     if (mounted && tags != null) {
       setState(() {
@@ -72,7 +82,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           _tags[tag] = tags.contains(tag);
         }
       });
-    }
+    }*/
   }
 
   @override
@@ -390,7 +400,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               color: selected
                                 ? (a11y.highContrast
                                   ? Colors.white
-                                  : cs.primary)
+                                  : cs.onPrimary)
                                 : unselectedText,
                               fontWeight: FontWeight.w600,
                             ),

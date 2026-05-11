@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import 'package:pathway/core/widgets/app_scaffold.dart'; 
 import 'package:pathway/features/auth/presentation/login_screen.dart';
@@ -27,6 +28,23 @@ import 'package:pathway/features/admin/presentation/mod_dashboard.dart';
 
 import 'package:pathway/features/gamification/presentation/pages/badges_page.dart';
 
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+      (_) => notifyListeners(),
+    );
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
 class AppRouter {
   AppRouter._();
 
@@ -52,6 +70,11 @@ class AppRouter {
     navigatorKey: rootNavigatorKey,
     initialLocation: '/login',
     debugLogDiagnostics: true,
+
+    refreshListenable: GoRouterRefreshStream(
+      Supabase.instance.client.auth.onAuthStateChange,
+    ),
+    
     redirect: (context, state) {
       final session = Supabase.instance.client.auth.currentSession;
       final loggedIn = session != null;

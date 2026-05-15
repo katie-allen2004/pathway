@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import 'package:pathway/core/widgets/app_scaffold.dart'; 
 import 'package:pathway/features/auth/presentation/login_screen.dart';
@@ -24,44 +25,23 @@ import 'package:pathway/features/profile/presentation/pages/other_user_profile.d
 import 'package:pathway/features/profile/presentation/pages/privacy_policy_page.dart'; 
 import 'package:pathway/features/profile/presentation/pages/security_settings_page.dart'; 
 import 'package:pathway/features/admin/presentation/mod_dashboard.dart'; 
-import 'package:pathway/features/profile/presentation/widgets/badges_section.dart';
 
+import 'package:pathway/features/gamification/presentation/pages/badges_page.dart';
 
-class BadgesScreen extends StatelessWidget {
-  const BadgesScreen({super.key});
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+      (_) => notifyListeners(),
+    );
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F1F7),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 56, 24, 28),
-            decoration: const BoxDecoration(color: Color(0xFF4F67D6)),
-            child: const Text(
-              'Badges',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 620),
-                  child: BadgesSection(),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }
 
@@ -90,6 +70,11 @@ class AppRouter {
     navigatorKey: rootNavigatorKey,
     initialLocation: '/login',
     debugLogDiagnostics: true,
+
+    refreshListenable: GoRouterRefreshStream(
+      Supabase.instance.client.auth.onAuthStateChange,
+    ),
+    
     redirect: (context, state) {
       final session = Supabase.instance.client.auth.currentSession;
       final loggedIn = session != null;
@@ -222,47 +207,47 @@ class AppRouter {
                     builder: (context, state) => const EditProfilePage(),
                   ),
                   GoRoute(
-                    path: '/notification',
+                    path: 'notification',
                     name: 'notification-settings',
                     builder: (context, state) => const NotificationSettingsPage(),
                   ),
                   GoRoute(
-                    path: '/accessibility',
+                    path: 'accessibility',
                     name: 'accessibility-settings',
                     builder: (context, state) => const AccessibilitySettingsPage(),
                   ),
                   GoRoute(
-                    path: '/favorites',
+                    path: 'favorites',
                     name: 'favorites',
                     builder: (context, state) => const FavoritesPage(),
                   ),
                   GoRoute(
-                    path: '/security',
+                    path: 'security',
                     name: 'security-settings',
                     builder: (context, state) => const SecuritySettingsPage(),
                   ),
                   GoRoute(
-                    path: '/blocked-muted',
+                    path: 'blocked-muted',
                     name: 'blocked-muted-users',
                     builder: (context, state) => const BlockedMutedPage(),
                   ),
                   GoRoute(
-                    path: '/moderator',
+                    path: 'moderator',
                     name: 'moderator-dashboard',
                     builder: (context, state) => const ModeratorDashboard(),
                   ),
                   GoRoute(
-                    path: '/help',
+                    path: 'help',
                     name: 'help-page',
                     builder: (context, state) => const HelpPage(),
                   ),
                   GoRoute(
-                    path: '/contact-us',
+                    path: 'contact-us',
                     name: 'contact-us',
                     builder: (context, state) => const ContactUsPage(),
                   ),
                   GoRoute(
-                    path: '/privacy-policy',
+                    path: 'privacy-policy',
                     name: 'privacy-policy',
                     builder: (context, state) => const PrivacyPolicyPage(),
                   ),

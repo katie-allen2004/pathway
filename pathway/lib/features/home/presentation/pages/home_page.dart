@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:pathway/core/services/notification_controller.dart';
-import 'package:pathway/models/notification.dart';
+import 'package:pathway/core/widgets/pathway_nav_bar.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
+import '/features/profile/data/profile_repository.dart';
+import 'package:go_router/go_router.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,9 +14,86 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  @override
-  void initState() {
-    super.initState();
+  final _supabase = Supabase.instance.client;
+
+  bool _isVenuesExpanded = false;
+  bool _isReviewsExpanded = false;
+
+  double _minRating = 0.0;
+  String? _selectedTag;
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final a11y = context.watch<AccessibilityController>().settings;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Filter Venues",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700
+                      )
+                    ),//TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  Text("Minimum Rating: ${_minRating.toStringAsFixed(1)} Stars"),
+                  Slider(
+                    value: _minRating,
+                    min: 0,
+                    max: 5,
+                    divisions: 5,
+                    onChanged: (val) {
+                      setSheetState(() => _minRating = val);
+                      setState(() {}); 
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  const Text("Accessibility Features"),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      'Wheelchair Accessible',
+                      'Accessible Restroom',
+                      'Accessible Parking',
+                    ].map((tag) {
+                      final isSelected = _selectedTag == tag;
+                      return ChoiceChip(
+                        label: Text(tag),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setSheetState(() => _selectedTag = selected ? tag : null);
+                          setState(() {}); 
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        backgroundColor: a11y.highContrast ? Colors.black : cs.primary),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Apply Filters"),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -20,94 +101,145 @@ class _HomePageState extends State<HomePage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pathway'),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: navigate to map/search page
-            },
-          ),
-          ElevatedButton(
-            onPressed: () {
-              InAppNotificationController.instance.show(
-                const InAppNotification(
-                  title: 'Test',
-                  body: 'You have a new notification',
-                ),
-              );
-            },
-            child: const Text('Show notification'),
-          )
-        ],
+      appBar: PathwayAppBar(
+        title: FutureBuilder<String?>(
+          future: ProfileRepository().getDisplayName(),
+          builder: (context, snapshot) {
+            final displayName = snapshot.data ?? 'Guest';
+            return Padding(
+              padding: const EdgeInsets.only(top: 2.0),
+              child: Text(
+                'Welcome back, $displayName!',
+                style: theme.appBarTheme.titleTextStyle,
+              ),
+            );
+          }
+        ),
+        centertitle: false,
+        height: 100
       ),
+
+
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
+
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back, User!',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, size: 18),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Nearby venues around you',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ],
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _QuickActionsRow(
+                  onFilterPressed: _showFilterSheet, 
                 ),
               ),
             ),
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: _QuickActionsRow(),
-              ),
-            ),
+
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            
             SliverToBoxAdapter(
               child: _SectionHeader(
                 title: 'Nearby accessible venues',
+                buttonLabel: _isVenuesExpanded ? 'Show less' : 'See all',
+                onSeeAll: () {
+                  setState(() {
+                    _isVenuesExpanded = !_isVenuesExpanded;
+                  });
+                },
               ),
             ),
-            SliverList.builder(
-              itemCount: _dummyVenues.length,
-              itemBuilder: (context, index) {
-                final venue = _dummyVenues[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: _VenueCard(venue: venue),
+
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _supabase
+                  .schema('pathway')
+                  .from('venues_with_scores')
+                  .stream(primaryKey: ['venue_id'])
+                  .order('created_at', ascending: false), 
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return SliverToBoxAdapter(child: Text("Error: ${snapshot.error}"));
+                if (!snapshot.hasData) return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
+                
+                final filteredVenues = snapshot.data!.where((v) {
+                  final ratingMatch = (v['avg_rating'] ?? 0.0) >= _minRating;
+                  final tagMatch = _selectedTag == null || 
+                                   List<String>.from(v['features'] ?? []).contains(_selectedTag);
+                  return ratingMatch && tagMatch;
+                }).toList();
+
+                final displayVenues = _isVenuesExpanded ? filteredVenues : filteredVenues.take(3).toList();
+
+                if (displayVenues.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Center(child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text("No venues match your filters."),
+                    )),
+                  );
+                }
+
+                return SliverList.builder(
+                  itemCount: displayVenues.length,
+                  itemBuilder: (context, index) {
+                    final v = displayVenues[index];
+
+                    return Padding(
+                      key: ValueKey('venue-${v['venue_id']}'),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: _VenueCard(
+                        venue: {
+                          'name': v['name'] ?? 'Untitled',
+                          'city': v['city'] ?? '',
+                          'score': (v['avg_rating'] as num?)?.toDouble() ?? 0.0, 
+                          'features': List<String>.from(v['features'] ?? []),
+                        },
+                      ),
+                    );
+                  },
                 );
               },
             ),
+
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            
             SliverToBoxAdapter(
               child: _SectionHeader(
                 title: 'Recent reviews',
+                buttonLabel: _isReviewsExpanded ? 'Show less' : 'See all',              
+                onSeeAll: () => setState(() => _isReviewsExpanded = !_isReviewsExpanded), 
               ),
             ),
-            SliverList.builder(
-              itemCount: _dummyReviews.length,
-              itemBuilder: (context, index) {
-                final review = _dummyReviews[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: _ReviewCard(review: review),
+
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _supabase
+                  .schema('pathway')
+                  .from('reviews_with_names') 
+                  .stream(primaryKey: ['review_id']) 
+                  .order('created_at', ascending: false), 
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return SliverToBoxAdapter(child: Text("Error: ${snapshot.error}"));
+                if (!snapshot.hasData) return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
+                
+                final allReviews = snapshot.data!;
+                final displayReviews = _isReviewsExpanded ? allReviews : allReviews.take(3).toList();
+
+                return SliverList.builder(
+                  itemCount: displayReviews.length,
+                  itemBuilder: (context, index) {
+                    final data = displayReviews[index];
+
+                    return Padding(
+                      key: ValueKey('review-${data['review_id']}'),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: _ReviewCard(
+                        review: {
+                          'user': data['display_name'] ?? 'Anonymous',
+                          'venue': 'Venue #${data['venue_id']}',
+                          'rating': (data['rating'] as num?)?.toInt() ?? 0,
+                          'text': data['review_text']?.toString() ?? '', 
+                        },
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -119,32 +251,40 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// Define reusable widgets for the home page
 class _QuickActionsRow extends StatelessWidget {
-  const _QuickActionsRow();
+  final VoidCallback onFilterPressed;
+
+  const _QuickActionsRow({required this.onFilterPressed});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _QuickActionButton(
-            icon: Icons.map_outlined,
+            icon: Icons.map_outlined, 
             label: 'Map',
+            onPressed: () {
+              context.go('/map');
+            },
           ),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Expanded(
           child: _QuickActionButton(
-            icon: Icons.filter_alt_outlined,
+            icon: Icons.filter_alt_outlined, 
             label: 'Filters',
+            onPressed: onFilterPressed, 
           ),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Expanded(
           child: _QuickActionButton(
-            icon: Icons.chat_bubble_outline,
+            icon: Icons.chat_bubble_outline, 
             label: 'Messages',
+            onPressed: () {
+              context.go('/messages');
+            },
           ),
         ),
       ],
@@ -155,36 +295,35 @@ class _QuickActionsRow extends StatelessWidget {
 class _QuickActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onPressed;
 
   const _QuickActionButton({
-    required this.icon,
-    required this.label,
+    required this.icon, 
+    required this.label, 
+    required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
 
     return ElevatedButton(
-      onPressed: () {
-        // TODO: hook into navigation for each action
-      },
+      onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
       ),
       child: Column(
         children: [
           Icon(icon),
           const SizedBox(height: 4),
-          Text(
-            label,
+          Text(label, 
             style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onPrimary,
-            ),
-          ),
+              color: Colors.white,
+            )),
         ],
       ),
     );
@@ -193,34 +332,21 @@ class _QuickActionButton extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final VoidCallback? onSeeAll;
+  final String buttonLabel;
+  final VoidCallback onSeeAll;
 
-  const _SectionHeader({
-    required this.title,
-    this.onSeeAll,
-  });
+  const _SectionHeader({required this.title, required this.buttonLabel, required this.onSeeAll});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          if (onSeeAll != null)
-            TextButton(
-              onPressed: onSeeAll,
-              child: const Text('See all'),
-            ),
+          Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          TextButton(onPressed: onSeeAll, child: Text(buttonLabel)),
         ],
       ),
     );
@@ -229,106 +355,10 @@ class _SectionHeader extends StatelessWidget {
 
 class _VenueCard extends StatelessWidget {
   final Map<String, Object> venue;
-
   const _VenueCard({required this.venue});
-
   @override
   Widget build(BuildContext context) {
-    final name = venue['name'] as String;
-    final city = venue['city'] as String;
-    final score = venue['score'] as double;
-    final features = venue['features'] as List<String>;
-
     final theme = Theme.of(context);
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // TODO: navigate to venue detail
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title + score row
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
-
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.accessible_forward, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          score.toStringAsFixed(1),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                city,
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: -4,
-                children: features
-                    .map(
-                      (f) => Chip(
-                        label: Text(f),
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  final Map<String, Object> review;
-
-  const _ReviewCard({required this.review});
-
-  @override
-  Widget build(BuildContext context) {
-    final user = review['user'] as String;
-    final venue = review['venue'] as String;
-    final text = review['text'] as String;
-    final rating = review['rating'] as int;
-
-    final theme = Theme.of(context);
-
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -336,45 +366,36 @@ class _ReviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User + rating row
             Row(
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  child: Text(user[0]),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    user,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                Expanded(child: Text(venue['name'] as String, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
                   ),
-                ),
-                Row(
-                  children: List.generate(
-                    5,
-                    (index) => Icon(
-                      index < rating
-                          ? Icons.star
-                          : Icons.star_border_outlined,
-                      size: 16,
-                    ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.accessible_forward, size: 16),
+                      const SizedBox(width: 4),
+                      Text((venue['score'] as double).toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Review of $venue',
-              style: theme.textTheme.bodySmall,
-            ),
+            Text(venue['city'] as String, style: theme.textTheme.bodySmall),
             const SizedBox(height: 8),
-            Text(
-              text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+            Wrap(
+              spacing: 6,
+              children: (venue['features'] as List<String>)
+                  .map((f) => Chip(
+                        label: Text(f), 
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      ))
+                  .toList(),
             ),
           ],
         ),
@@ -383,42 +404,42 @@ class _ReviewCard extends StatelessWidget {
   }
 }
 
-// --- dummy data just to make the UI feel real for now ---
+class _ReviewCard extends StatelessWidget {
+  final Map<String, Object> review;
+  const _ReviewCard({required this.review});
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final a11y = context.watch<AccessibilityController>().settings;
 
-final List<Map<String, Object>> _dummyVenues = [
-  {
-    'name': 'Bluebird Cafe',
-    'city': 'Albuquerque, NM',
-    'score': 4.5,
-    'features': ['Ramp', 'Accessible restroom', 'Wide entrance'],
-  },
-  {
-    'name': 'Downtown Library',
-    'city': 'Albuquerque, NM',
-    'score': 4.8,
-    'features': ['Elevator', 'Braille signs', 'Quiet space'],
-  },
-  {
-    'name': 'Sunset Theater',
-    'city': 'Albuquerque, NM',
-    'score': 4.1,
-    'features': ['Reserved seating', 'Assistive listening', 'Ramp'],
-  },
-];
-
-final List<Map<String, Object>> _dummyReviews = [
-  {
-    'user': 'Alex',
-    'venue': 'Bluebird Cafe',
-    'rating': 5,
-    'text':
-        'Great ramp access and friendly staff. Tables are spaced out enough for my wheelchair.',
-  },
-  {
-    'user': 'Jordan',
-    'venue': 'Downtown Library',
-    'rating': 4,
-    'text':
-        'Elevator is a bit slow but everything is clearly labeled and easy to navigate.',
-  },
-];
+    final user = review['user'] as String;
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(radius: 16, child: Text(user.isNotEmpty ? user[0] : 'U')),
+                const SizedBox(width: 8),
+                Expanded(child: Text(user, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600))),
+                Row(
+                  children: List.generate(5, (i) => Icon(
+                    i < (review['rating'] as int) ? Icons.star : Icons.star_border,
+                    size: 16, color: a11y.highContrast ? Colors.black : Colors.amber,
+                  )),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text('Review of ${review['venue']}', style: theme.textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Text(review['text'] as String, maxLines: 3, overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+}

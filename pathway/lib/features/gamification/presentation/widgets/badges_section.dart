@@ -1,23 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 
 import 'package:pathway/features/gamification/data/badge_model.dart';
 import 'package:pathway/features/gamification/data/badge_tab_data.dart';
 import 'package:pathway/features/venues/data/venue_repository.dart';
+import 'package:pathway/core/services/accessibility_controller.dart';
 
 class BadgesSection extends StatelessWidget {
   const BadgesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     final userId = Supabase.instance.client.auth.currentUser?.id;
     final repository = VenueRepository();
 
     if (userId == null) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.all(24),
         child: Center(
-          child: Text('Not logged in', style: TextStyle(fontSize: 16)),
+          child: Text(
+            'Not logged in', 
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 16,
+              color: a11y.highContrast ? Colors.black : cs.onSurface,
+            ),
+          ),
         ),
       );
     }
@@ -33,12 +45,15 @@ class BadgesSection extends StatelessWidget {
         }
 
         if (snapshot.hasError) {
-          return const Padding(
-            padding: EdgeInsets.all(24),
+          return Padding(
+            padding: const EdgeInsets.all(24),
             child: Center(
               child: Text(
                 'Failed to load badges',
-                style: TextStyle(fontSize: 16),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 16,
+                  color: a11y.highContrast ? Colors.black : cs.onSurface,
+                ),
               ),
             ),
           );
@@ -78,12 +93,15 @@ class BadgesSection extends StatelessWidget {
               ],
 
               if (data.earned.isEmpty && data.locked.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 30),
                   child: Center(
                     child: Text(
                       'No badges found yet.',
-                      style: TextStyle(fontSize: 16),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 16,
+                        color: a11y.highContrast ? Colors.black : cs.onSurface,
+                      ),
                     ),
                   ),
                 ),
@@ -108,21 +126,38 @@ class _ProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final cardBg = a11y.highContrast
+        ? Colors.white
+        : cs.primary.withValues(alpha: 0.10);
+
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.primary.withValues(alpha: 0.20);
+
+    final textColor = a11y.highContrast ? Colors.black : cs.onSurface;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFEEF1FF),
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: borderColor,
+          width: a11y.highContrast ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '$earnedCount / $totalCount badges earned',
-            style: const TextStyle(
-              fontSize: 16,
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1E2D6B),
+              color: textColor,
             ),
           ),
           const SizedBox(height: 10),
@@ -131,8 +166,12 @@ class _ProgressCard extends StatelessWidget {
             child: LinearProgressIndicator(
               minHeight: 10,
               value: progress,
-              backgroundColor: Colors.white,
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF4F67D6)),
+              backgroundColor: a11y.highContrast
+                  ? Colors.white
+                  : cs.surface,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                a11y.highContrast ? Colors.black : cs.primary,
+              ),
             ),
           ),
         ],
@@ -148,12 +187,16 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
     return Text(
       text,
-      style: const TextStyle(
+      style: theme.textTheme.titleMedium?.copyWith(
         fontSize: 17,
         fontWeight: FontWeight.w800,
-        color: Color(0xFF1B2559),
+        color: a11y.highContrast ? Colors.black : cs.onSurface,
       ),
     );
   }
@@ -167,23 +210,46 @@ class _BadgeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = _parseHexColor(badge.colorHex) ?? const Color(0xFF9AA8D6);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final baseColor = _parseHexColor(badge.colorHex) ?? cs.primary;
+
+    final cardColor = a11y.highContrast
+        ? Colors.white
+        : (isLocked ? cs.surfaceContainerHighest : cs.surface);
+
+    final borderColor = a11y.highContrast
+        ? Colors.black
+        : cs.outline.withValues(alpha: 0.18);
+
+    final titleColor = a11y.highContrast ? Colors.black : cs.onSurface;
+    final bodyColor = a11y.highContrast
+        ? Colors.black
+        : cs.onSurface.withValues(alpha: 0.76);
 
     return Opacity(
-      opacity: isLocked ? 0.72 : 1,
+      opacity: isLocked ? 0.78 : 1,
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
         decoration: BoxDecoration(
-          color: isLocked ? const Color(0xFFE9EAF1) : Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          border: Border.all(
+            color: borderColor,
+            width: a11y.highContrast ? 2 : 1,
+          ),
+          boxShadow: a11y.highContrast
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,29 +267,29 @@ class _BadgeCard extends StatelessWidget {
                 children: [
                   Text(
                     badge.name,
-                    style: const TextStyle(
+                    style: theme.textTheme.titleMedium?.copyWith(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF18295E),
+                      color: titleColor,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     badge.description,
-                    style: TextStyle(
+                    style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 13,
-                      color: Colors.grey[600],
+                      color: bodyColor,
                       height: 1.3,
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     isLocked ? _lockedText(badge) : _earnedText(badge),
-                    style: const TextStyle(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       height: 1.5,
-                      color: Color(0xFF18295E),
+                      color: titleColor,
                     ),
                   ),
                 ],
@@ -231,11 +297,13 @@ class _BadgeCard extends StatelessWidget {
             ),
 
             if (isLocked)
-              const Padding(
-                padding: EdgeInsets.only(left: 8, top: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
                 child: Icon(
                   Icons.lock_outline_rounded,
-                  color: Colors.grey,
+                  color: a11y.highContrast
+                      ? Colors.black
+                      : cs.onSurface.withValues(alpha: 0.55),
                   size: 20,
                 ),
               ),
@@ -296,17 +364,32 @@ class _BadgeIconBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayColor = isLocked ? Colors.grey.shade400 : color;
+    final a11y = context.watch<AccessibilityController>().settings;
+
+    final displayColor = a11y.highContrast
+        ? Colors.black
+        : (isLocked ? Colors.grey.shade500 : color);
 
     return Container(
       width: 64,
       height: 64,
       decoration: BoxDecoration(
-        color: displayColor.withOpacity(0.14),
+        color: a11y.highContrast
+            ? Colors.white
+            : displayColor.withValues(alpha: 0.14),
         shape: BoxShape.circle,
-        border: Border.all(color: displayColor.withOpacity(0.22), width: 1.8),
+        border: Border.all(
+          color: a11y.highContrast
+              ? Colors.black
+              : displayColor.withValues(alpha: 0.22),
+          width: 1.8,
+        ),
       ),
-      child: Icon(_iconFromKey(badge.iconKey), color: displayColor, size: 30),
+      child: Icon(
+        _iconFromKey(badge.iconKey), 
+        color: displayColor, 
+        size: 30
+      ),
     );
   }
 

@@ -668,25 +668,23 @@ class _OverviewTabState extends State<_OverviewTab> {
 
         const SizedBox(height: 14),
 
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SizedBox(
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed: widget.onSuggestEdit,
-              icon: const Icon(Icons.edit_note_rounded, size: 18),
-              label: const Text('Suggest Edit'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        Row(
+          children: [
+            SizedBox(
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: widget.onSuggestEdit,
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('Suggest Edit'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // subscribe/unsubscribe button
             SubscribeVenueButton(
               venueId: venue.id.toString(),
             ),

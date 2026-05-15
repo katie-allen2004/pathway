@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:pathway/core/widgets/widgets.dart';
 import '../../data/venue_subscription_service.dart';
 import '../widgets/venue_card.dart';
 import '../../data/venue_model.dart';
+import 'package:pathway/core/widgets/pathway_nav_bar.dart';
 
 class MyVenuesPage extends StatefulWidget {
   const MyVenuesPage({super.key});
@@ -35,8 +37,16 @@ class _MyVenuesPageState extends State<MyVenuesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('my venues'),
+      appBar: PathwayAppBar(
+        height: 100,
+        centertitle: false,
+        title: Padding(
+          padding: const EdgeInsets.only(top: 2.0),
+          child: Text(
+            'My Venues',
+            style: Theme.of(context).appBarTheme.titleTextStyle,
+          ),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

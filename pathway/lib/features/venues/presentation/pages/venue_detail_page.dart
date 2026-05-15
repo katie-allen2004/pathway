@@ -16,6 +16,8 @@ import 'package:pathway/features/venues/presentation/widgets/suggest_edit_dialog
 import 'package:pathway/features/venues/data/venue_edit_history_model.dart';
 import 'package:pathway/features/venues/data/venue_image_model.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import '../widgets/subscribe_venue_button.dart';
 import 'package:pathway/features/reviews/presentation/widgets/review_vote_buttons.dart';
 import 'package:pathway/features/reviews/presentation/widgets/flagged_review_banner.dart';
 import 'package:pathway/features/venues/data/venue_post_model.dart';
@@ -681,7 +683,14 @@ class _OverviewTabState extends State<_OverviewTab> {
                 ),
               ),
             ),
-          ),
+
+            const SizedBox(width: 12),
+
+            // subscribe/unsubscribe button
+            SubscribeVenueButton(
+              venueId: venue.id.toString(),
+            ),
+          ],
         ),
 
         const SizedBox(height: 16),

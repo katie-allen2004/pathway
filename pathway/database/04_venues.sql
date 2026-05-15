@@ -41,3 +41,53 @@ CREATE TABLE IF NOT EXISTS pathway.saved_venues (
 --indexes for perfomance 
 CREATE INDEX IF NOT EXISTS idx_venues_city ON pathway.venues(city);
 CREATE INDEX IF NOT EXISTS idx_venues_state ON pathway.venues(state);
+
+--venue subscriptions
+select * 
+from pathway.venue_subscriptions 
+limit 5;
+
+select constraint_name, constraint_type
+from information_schema.table_constraints
+where table_name = 'venue_subscriptions';
+
+select
+  kcu.column_name
+from information_schema.table_constraints tc
+join information_schema.key_column_usage kcu
+  on tc.constraint_name = kcu.constraint_name
+where tc.table_name = 'venue_subscriptions'
+  and tc.constraint_type = 'PRIMARY KEY';
+
+create policy "users can insert own venue subscriptions"
+on pathway.venue_subscriptions
+for insert
+with check (
+  user_id = (
+    select user_id
+    from pathway.users
+    where external_id = auth.uid()::text
+  )
+);
+
+create policy "users can delete own venue subscriptions"
+on pathway.venue_subscriptions
+for delete
+using (
+  user_id = (
+    select user_id
+    from pathway.users
+    where external_id = auth.uid()::text
+  )
+);
+
+create policy "users can view own venue subscriptions"
+on pathway.venue_subscriptions
+for select
+using (
+  user_id = (
+    select user_id
+    from pathway.users
+    where external_id = auth.uid()::text
+  )
+);

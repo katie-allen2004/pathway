@@ -119,3 +119,111 @@ with check (
     )
   )
 );
+
+--conversation members fixed
+
+alter table pathway.conversation_members enable row level security;
+
+drop policy if exists "conversation_members read own conversations" on pathway.conversation_members;
+drop policy if exists "conversation_members insert authenticated" on pathway.conversation_members;
+
+-- simple read policy so the app can inspect memberships
+create policy "conversation_members read authenticated"
+on pathway.conversation_members
+for select
+to authenticated
+using (true);
+
+-- allow authenticated users to add members when creating a dm/group
+create policy "conversation_members insert authenticated"
+on pathway.conversation_members
+for insert
+to authenticated
+with check (true);
+
+-- conversations final
+
+alter table pathway.conversations enable row level security;
+
+drop policy if exists "conversations insert authenticated" on pathway.conversations;
+drop policy if exists "conversations read own" on pathway.conversations;
+
+-- allow any authenticated user to create a conversation row
+create policy "conversations insert authenticated"
+on pathway.conversations
+for insert
+to authenticated
+with check (true);
+
+-- allow any authenticated user to read conversations for now
+create policy "conversations read authenticated"
+on pathway.conversations
+for select
+to authenticated
+using (true);
+
+-- delete convos
+alter table pathway.conversations enable row level security;
+
+drop policy if exists "conversations delete authenticated" on pathway.conversations;
+create policy "conversations delete authenticated"
+on pathway.conversations
+for delete
+to authenticated
+using (true);
+
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'pathway'
+  and table_name = 'conversations'
+order by ordinal_position;
+
+create policy "members can update conversation title"
+on pathway.conversations
+for update
+using (
+  exists (
+    select 1
+    from pathway.conversation_members cm
+    join pathway.users u on u.user_id = cm.user_id
+    where cm.conversation_id = conversations.conversation_id
+      and u.external_id = auth.uid()::text
+  )
+)
+with check (
+  exists (
+    select 1
+    from pathway.conversation_members cm
+    join pathway.users u on u.user_id = cm.user_id
+    where cm.conversation_id = conversations.conversation_id
+      and u.external_id = auth.uid()::text
+  )
+);
+
+alter table pathway.conversations
+add column if not exists image_path text;
+
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'pathway'
+  and table_name = 'conversations'
+order by ordinal_position;
+
+create policy "authenticated users can upload chat icons"
+on storage.objects
+for insert
+to authenticated
+with check (bucket_id = 'chat-icons');
+
+create policy "authenticated users can update chat icons"
+on storage.objects
+for update
+to authenticated
+using (bucket_id = 'chat-icons')
+with check (bucket_id = 'chat-icons');
+
+create policy "authenticated users can read chat icons"
+on storage.objects
+for select
+to authenticated
+using (bucket_id = 'chat-icons');
